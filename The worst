@@ -1,0 +1,1132 @@
+--[[
+    Resonance → BetterOrion Port
+    Tabs: Target / Blobman / Invincibility
+    Source: Script Hub FTAP - Resonance v2.9
+    UI: BetterOrion
+]]
+
+-- ============================================
+-- Services
+-- ============================================
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace         = game:GetService("Workspace")
+local Stats             = game:GetService("Stats")
+local Debris            = game:GetService("Debris")
+local CoreGui           = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse       = LocalPlayer:GetMouse()
+local startTime   = os.clock()
+
+-- ============================================
+-- Load Library
+-- ============================================
+local function LoadLibrary()
+    local ok, result = pcall(function()
+        local src = game:HttpGet("https://raw.githubusercontent.com/ludicious-claw/BetterOrion/refs/heads/main/Library.lua")
+        local chunk = loadstring(src)
+        return chunk and chunk()
+    end)
+    if ok and type(result) == "table" then return result end
+
+    local function Stub()
+        local t = {}
+        setmetatable(t, { __index = function(self, key)
+            local fn = function() return self end
+            rawset(self, key, fn); return fn
+        end })
+        return t
+    end
+    return {
+        Flags = {}, MakeNotification = function() end, Destroy = function() end,
+        SetConfigTab = function() end, LoadAutoloadConfigs = function() end,
+        SaveAndLoadSizes = function() end, Init = function() end,
+        Set = function() end, Save = function() end, Get = function() return nil end,
+        MakeWindow = function() local w = Stub(); w.MakeTab = function() return Stub() end; return w end,
+    }
+end
+
+local Library = LoadLibrary()
+
+-- ============================================
+-- State Tables (จาก Resonance)
+-- ============================================
+local State = {
+    Toggles = {
+        AutoClicker           = false,
+        RagdollInAC           = true,
+        GucciAntiGrab         = false,
+        AntiGrab              = false,
+        AutoSeatBlobman       = false,
+        FreezeBlobman         = false,
+        DisableEndGrabEarly   = true,
+        PositionPrediction    = false,
+        DirectGrab            = false,
+    },
+    Values = {
+        AutoClickerOffset = CFrame.new(0, 0, -5),
+        AutoClickerTransparency = 0,
+        TargetedLimbAura = "All",
+        TargetedLimbCA   = "All",
+        TargetedLimbTE   = "All",
+        BKMethod         = 1,
+        NKOffset         = 15,
+        NKDelayMode      = "Normal",
+        AGType           = "Normal",
+        BlobMethod       = "Kick",
+        KickServerMethod = "Circle + Lag",
+        AuraDistance     = 25,
+        LoboStrength     = 166.6,
+        WhoGrabbed       = nil,
+    },
+    TargetMethods = {},
+    Auras         = {},
+    Grabs         = {},
+    ToyEffects    = {},
+    KickLogs      = {},
+    AnchorSettings = {
+        FillColor    = Color3.fromRGB(182, 38, 186),
+        OutlineColor = Color3.new(1, 1, 1),
+        Physics      = PhysicalProperties.new(100, 2, 0, 100, 100),
+    },
+    LimbOffsetsRL = {
+        Head = CFrame.new(0, 1.5, 0),
+        ["Left Arm"]  = CFrame.new(-1.5, 0, 0),
+        ["Right Arm"] = CFrame.new(1.5, 0, 0),
+        ["Left Leg"]  = CFrame.new(-0.5, -2, 0),
+        ["Right Leg"] = CFrame.new(0.5, -2, 0),
+        Torso = CFrame.new(),
+    },
+}
+
+-- Player selection lists (เทียบเท่า tbl7.SelectedPlayers*)
+local Lists = {
+    Target       = {},
+    Blobman      = {},
+    Effect       = {},
+    AutoClicker  = {},
+    Immunity     = {},
+    Whitelisted  = {},
+    AdminImmune  = {},
+    Aura         = {},
+    CA           = {},
+    SilentAim    = {},
+    Teleport     = {},
+    ACPoseCenter = {},
+    ToysAura     = {},
+}
+
+-- ============================================
+-- Utility: Character
+-- ============================================
+local __cache = setmetatable({}, { __mode = "k" })
+
+local function Char(arg)
+    arg = arg or LocalPlayer
+    if __cache[arg] then
+        local c = __cache[arg].Character
+        local r = __cache[arg].RootPart
+        local h = __cache[arg].Humanoid
+        if c and c.Parent and r and r.Parent and h and h.Parent then
+            return c, r, h
+        end
+        __cache[arg] = nil
+    end
+    local character = arg.Character
+    if character then
+        local hrp = character:FindFirstChild("realHrp") or character:FindFirstChild("HumanoidRootPart")
+        local hum = character:FindFirstChild("Humanoid")
+        __cache[arg] = { Character = character, RootPart = hrp, Humanoid = hum }
+        return character, hrp, hum
+    end
+end
+
+-- ============================================
+-- Utility: Ownership
+-- ============================================
+local RemoteCache = {}
+
+local function findRemote(container, name, sub)
+    local c = ReplicatedStorage:FindFirstChild(container)
+    if sub then c = c and c:FindFirstChild(sub) end
+    return c and c:FindFirstChild(name, true)
+end
+
+local function initRemotes()
+    RemoteCache.SetNetworkOwner  = findRemote("Grab", "SetNetworkOwner")
+    RemoteCache.CreateGrabLine   = findRemote("Grab", "CreateGrabLine")
+    RemoteCache.DestroyGrabLine  = findRemote("Grab", "DestroyGrabLine")
+    RemoteCache.StickyPartEvent  = findRemote("Player", "StickyPartEvent")
+    RemoteCache.SpawnToy         = findRemote("MenuToys", "SpawnToyRemoteFunction")
+    RemoteCache.DestroyToy       = findRemote("MenuToys", "DestroyToy")
+    RemoteCache.Struggle         = findRemote("Character", "Struggle")
+    RemoteCache.RagdollRemote    = findRemote("Character", "RagdollRemote")
+    RemoteCache.UseFood          = findRemote("Hold", "Use")
+    RemoteCache.Explode          = findRemote("Bomb", "BombExplode")
+    RemoteCache.Packet            = findRemote("Grab", "ExtendGrabLine")
+end
+initRemotes()
+
+local function IsNetworkOwner(part)
+    if not (part and part:IsA("BasePart")) then return false end
+    local root = part.AssemblyRootPart or part
+    return not root.Anchored and root.ReceiveAge == 0
+end
+
+local function IsPartOwner(part)
+    if not (part and part:IsA("BasePart")) then return false end
+    local parent = part.Parent
+    local head = part.Name == "HumanoidRootPart" and parent and parent:FindFirstChild("Head")
+    head = head and head:FindFirstChild("PartOwner")
+    if head and head.Value == LocalPlayer.Name then return true end
+    local po = part:FindFirstChild("PartOwner")
+    return po and po.Value == LocalPlayer.Name
+end
+
+local function IsProtectedPlayer(player, includeWhitelist)
+    if State.TargetMethods.WhitelistedBypass and Lists.Whitelisted[player] then return true end
+    return Lists.AdminImmune[player] == true
+end
+
+-- ============================================
+-- Core Actions
+-- ============================================
+local Actions = {}
+
+function Actions.Grab(part, cf)
+    local _, hrp, hum = Char()
+    if not hrp or not hum or hum.Health == 0 or not part or not part.Parent then return end
+    local target = (cf or hrp.CFrame) * CFrame.new(0, 1.593, 0)
+    local aimed  = part.CFrame
+    if not State.Toggles.DirectGrab then
+        aimed = CFrame.new(target.Position, aimed.Position)
+    end
+    if RemoteCache.SetNetworkOwner then
+        RemoteCache.SetNetworkOwner:FireServer(part, aimed)
+    end
+end
+
+function Actions.RNO(part)
+    if RemoteCache.DestroyGrabLine then
+        RemoteCache.DestroyGrabLine:FireServer(part)
+    end
+end
+
+function Actions.ResetVelocity(part)
+    if not part or not part:IsA("BasePart") then return end
+    if part.AssemblyAngularVelocity ~= Vector3.zero then part.AssemblyAngularVelocity = Vector3.zero end
+    if part.AssemblyLinearVelocity  ~= Vector3.zero then part.AssemblyLinearVelocity  = Vector3.zero end
+end
+
+function Actions.Teleport(part, cf, noReset)
+    if not part or not part:IsA("BasePart") or not cf then return end
+    if typeof(cf) == "Vector3" then cf = CFrame.new(cf) end
+    if typeof(cf) ~= "CFrame" then return end
+    part.CFrame = cf
+    if noReset ~= false then Actions.ResetVelocity(part) end
+end
+
+function Actions.SNO(part, timeout, cond)
+    local _, hrp, hum = Char()
+    if not hrp or not hum or hum.Health == 0 or not part or not part.Parent then return false end
+    if IsPartOwner(part) then return true end
+    local start = tick()
+    timeout = timeout or 0.65
+    while not IsPartOwner(part) and part.Parent and hum.Health > 0 and hrp.Parent and (tick() - start) < timeout do
+        if cond and not cond() then return false end
+        Actions.Grab(part)
+        RunService.Heartbeat:Wait()
+    end
+    return IsPartOwner(part)
+end
+
+function Actions.BreakLimb(player, mode)
+    local char, hrp, hum = Char(player)
+    if not hrp or not hum or hum.Health == 0 then return end
+    local ragdolled = hum:FindFirstChild("Ragdolled")
+    if not ragdolled then return end
+
+    if player == LocalPlayer then
+        if RemoteCache.RagdollRemote then RemoteCache.RagdollRemote:FireServer(hrp, 0.35) end
+        task.wait(0.2)
+    else
+        if not Actions.SNO(hrp) then return end
+        if RemoteCache.RagdollRemote then RemoteCache.RagdollRemote:FireServer(hrp, 0) end
+        task.wait(0.15)
+    end
+
+    local cf = hrp.CFrame
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            if part.Name:find("Arm") and (mode == "Arms" or mode == "All") then
+                Actions.Teleport(part, CFrame.new(0, -100000, 0))
+            elseif part.Name:find("Leg") and (mode == "Legs" or mode == "All") then
+                Actions.Teleport(part, CFrame.new(0, -100000, 0))
+            end
+        end
+    end
+    task.wait(0.15)
+    if not hrp.Parent then return end
+    Actions.Grab(hrp)
+    task.wait(0.2)
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then Actions.ResetVelocity(part) end
+    end
+end
+
+function Actions.Kill(player)
+    local char, hrp, hum = Char(player)
+    if not hrp or not hum or hum.Health == 0 then return end
+    hum.BreakJointsOnDeath = false
+    hum:ChangeState(Enum.HumanoidStateType.Dead)
+    if not Actions.SNO(hrp) then return end
+    workspace.FallenPartsDestroyHeight = -10000
+    Actions.Teleport(hrp, CFrame.new(0, -11000, 0))
+    task.wait(0.1)
+    workspace.FallenPartsDestroyHeight = -100
+end
+
+function Actions.Void(player)
+    local char, hrp, hum = Char(player)
+    if not hrp or not hum or hum.Health == 0 then return end
+    if not Actions.SNO(hrp) then return end
+    Actions.Teleport(hrp, CFrame.new(0, 9e9, 0))
+    hrp.Velocity = Vector3.new(0, 9e9, 0)
+    task.delay(0.35, Actions.RNO, hrp)
+end
+
+function Actions.BringPlayer(player)
+    local _, hisRoot, hisHum = Char(player)
+    local _, myRoot, myHum = Char()
+    if not (hisRoot and hisHum and hisHum.Health > 0 and myRoot and myHum and myHum.Health > 0) then return end
+    if not IsNetworkOwner(hisRoot) and not Actions.SNO(hisRoot) then return end
+    local targetCF = myRoot.CFrame * CFrame.new(0, 0, -5)
+    for _ = 1, 3 do
+        if not hisRoot.Parent or hisHum.Health <= 0 then break end
+        hisRoot.CFrame = targetCF
+        Actions.ResetVelocity(hisRoot)
+        RunService.Heartbeat:Wait()
+    end
+    Actions.RNO(hisRoot)
+end
+
+function Actions.RemoveGucci(player)
+    local _, hrp, hum = Char(player)
+    if not hrp or not hum or hum.Health == 0 then return end
+    if hum.Sit then hum.Sit = false end
+    if not Actions.SNO(hrp) then return end
+    hum.Sit = true
+    task.wait(0.1)
+    hum.Sit = false
+    task.wait(0.1)
+    Actions.Grab(hrp)
+end
+
+function Actions.DestroyObject(model, part)
+    if not model or not model:IsA("Model") then return end
+    part = part or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not part or part.Anchored or not Actions.SNO(part) then return end
+    Actions.RNO(part)
+    workspace.FallenPartsDestroyHeight = 0/0
+    model:PivotTo(CFrame.new(0, -11111, 0))
+    task.delay(0.2, function()
+        workspace.FallenPartsDestroyHeight = -100
+        task.delay(0.4, Actions.RNO, part)
+    end)
+end
+
+-- ============================================
+-- Loop Engine
+-- ============================================
+local LoopTokens = {}
+local Loops = {}
+
+local function processPlayer(player, loop, isServer, isBlob, tokenId)
+    if not player or not player.Parent then return end
+    if isBlob then
+        local method = State.Values.BlobMethod
+        if method == "Kill" then
+            Actions.Kill(player)
+        elseif method == "Bring" then
+            Actions.BringPlayer(player)
+        elseif method == "Remove Gucci" then
+            Actions.RemoveGucci(player)
+        elseif method == "Follow" then
+            local _, hisRoot, hisHum = Char(player)
+            local _, myRoot, myHum = Char()
+            if hisRoot and hisHum and hisHum.Health > 0 and myRoot then
+                while isServer and tokenId == LoopTokens[tokenId] and hisHum.Health > 0 do
+                    if (hisRoot.Position - myRoot.Position).Magnitude > 50 then
+                        Actions.Teleport(hisRoot, myRoot.CFrame * CFrame.new(0, 5, 0))
+                    end
+                    task.wait()
+                end
+            end
+        elseif method == "Lock" and RemoteCache.SpawnToy then
+            -- stub: ต้องใช้ blobman seat
+        elseif method == "Kick" and isServer then
+            -- KickServer
+            local targets = {}
+            for p in pairs(Lists.Blobman) do
+                if p.Parent and p ~= LocalPlayer and not IsProtectedPlayer(p) then
+                    table.insert(targets, p)
+                end
+            end
+            for _, p in ipairs(targets) do
+                local _, hp, hh = Char(p)
+                if hp and hh and hh.Health > 0 then
+                    Actions.Kill(p)
+                end
+            end
+        end
+        return
+    end
+
+    if State.TargetMethods.Bring then Actions.BringPlayer(player) end
+    if State.TargetMethods.Kill  then Actions.Kill(player) end
+    if State.TargetMethods.Void  then Actions.Void(player) end
+    if State.TargetMethods["Remove Gucci"] then Actions.RemoveGucci(player) end
+    if State.TargetMethods["Delete Limbs"] then
+        Actions.BreakLimb(player, State.Values.TargetedLimbTE)
+    end
+end
+
+local function startLoop(name, server, blob, listRef)
+    LoopTokens[name] = (LoopTokens[name] or 0) + 1
+    local myToken = LoopTokens[name]
+
+    task.spawn(function()
+        while State.Toggles[name] and LoopTokens[name] == myToken do
+            local targets = {}
+            for p in pairs(listRef) do
+                if p and p.Parent and p ~= LocalPlayer and not IsProtectedPlayer(p) then
+                    table.insert(targets, p)
+                end
+            end
+            for _, p in ipairs(targets) do
+                if not State.Toggles[name] or LoopTokens[name] ~= myToken then break end
+                pcall(processPlayer, p, true, server, blob, myToken)
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ============================================
+-- Window
+-- ============================================
+local Window = Library:MakeWindow({
+    Name = "VIP The worst",
+    SubNameSide = "2.5 OP HVH",
+    ShowIcon = true,
+    Icon = "crown",
+    IntroEnabled = false,
+    Size = UDim2.new(0, 740, 0, 540),
+    MinSize = UDim2.new(0, 540, 0, 320),
+    Theme = "Default",
+    Transparency = 0.15,
+    ElementsTransparency = 0.3,
+    SearchBar = true,
+    ToggleUIKey = Enum.KeyCode.RightShift,
+})
+
+local Tabs = {
+    Target        = Window:MakeTab({ Name = "Target",        Icon = "crosshair" }),
+    Blobman       = Window:MakeTab({ Name = "Blobman",       Icon = "venetian-mask" }),
+    Invincibility = Window:MakeTab({ Name = "Invincibility", Icon = "shield" }),
+}
+
+-- ============================================
+-- Helpers: Player Dropdowns
+-- ============================================
+local function makePlayerDropdown(section, name, listRef, multi, onChanged)
+    if multi == nil then multi = true end
+
+    local options = { "None" }
+    local function refresh()
+        options = { "None" }
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                table.insert(options, p.DisplayName .. " (@" .. p.Name .. ")")
+            end
+        end
+    end
+    refresh()
+
+    local dd = section:AddDropdown({
+        Name = name,
+        Options = options,
+        Default = multi and {} or "None",
+        Multi = multi,
+        Flag = "Resonance_" .. name .. "_" .. tostring(math.random(1, 1e6)),
+        Callback = function(sel)
+            for k in pairs(listRef) do listRef[k] = nil end
+            local function resolveKey(v)
+                if type(v) ~= "string" then return nil end
+                local n = v:match("@([^%)]+)")
+                if n then return Players:FindFirstChild(n) end
+                return Players:FindFirstChild(v)
+            end
+            if multi then
+                for _, v in ipairs(sel) do
+                    local p = resolveKey(v)
+                    if p and not IsProtectedPlayer(p) then listRef[p] = true end
+                end
+            else
+                local p = resolveKey(sel)
+                if p and not IsProtectedPlayer(p) then listRef[p] = true end
+            end
+            if onChanged then onChanged() end
+        end,
+    })
+
+    -- Auto-refresh on join/leave
+    Players.PlayerAdded:Connect(function()
+        refresh()
+        if dd and dd.RefreshOptions then dd:RefreshOptions(options) end
+    end)
+    Players.PlayerRemoving:Connect(function(p)
+        listRef[p] = nil
+        refresh()
+        if dd and dd.RefreshOptions then dd:RefreshOptions(options) end
+    end)
+
+    return dd
+end
+
+-- ============================================
+-- Tab: Target
+-- ============================================
+local TargetLeft  = Tabs.Target:AddSection({ Name = "Target",         Side = "Left"  })
+local TargetApply = Tabs.Target:AddSection({ Name = "Apply",          Side = "Left"  })
+local TargetMeth  = Tabs.Target:AddSection({ Name = "Method Settings", Side = "Right" })
+
+makePlayerDropdown(TargetLeft, "Target Players", Lists.Target, true)
+
+TargetApply:AddToggle({
+    Name = "Loop Apply Method (Selected)",
+    Default = false,
+    Flag = "Target_LoopSel",
+    Callback = function(v)
+        State.Toggles.LoopApplyMethodT = v
+        if v then
+            startLoop("LoopApplyMethodT", false, false, Lists.Target)
+        else
+            LoopTokens.LoopApplyMethodT = (LoopTokens.LoopApplyMethodT or 0) + 1
+        end
+    end,
+})
+
+TargetApply:AddToggle({
+    Name = "Loop Apply Method (Server)",
+    Default = false,
+    Flag = "Target_LoopServ",
+    Callback = function(v)
+        State.Toggles.LoopApplyMethodTServer = v
+        if v then
+            startLoop("LoopApplyMethodTServer", true, false, Lists.Target)
+        else
+            LoopTokens.LoopApplyMethodTServer = (LoopTokens.LoopApplyMethodTServer or 0) + 1
+        end
+    end,
+})
+
+TargetApply:AddButton({
+    Name = "Apply Method (Selected)",
+    Callback = function()
+        for p in pairs(Lists.Target) do
+            if p.Parent and not IsProtectedPlayer(p) then
+                pcall(processPlayer, p, nil, false, false, nil)
+            end
+        end
+    end,
+})
+
+TargetApply:AddButton({
+    Name = "Apply Method (Server)",
+    Callback = function()
+        for p in pairs(Lists.Target) do
+            if p.Parent and not IsProtectedPlayer(p) then
+                pcall(processPlayer, p, nil, true, false, nil)
+            end
+        end
+    end,
+})
+
+TargetMeth:AddDropdown({
+    Name = "Methods",
+    Options = { "Kick", "Void", "Kill", "Bring", "Destroy Food", "Remove Gucci", "Remove Invisibility", "Delete Seatables" },
+    Default = {},
+    Multi = true,
+    Flag = "Target_Methods",
+    Callback = function(sel)
+        State.TargetMethods = {}
+        for _, v in ipairs(sel) do State.TargetMethods[v] = true end
+    end,
+})
+
+TargetMeth:AddDivider()
+
+-- Kick settings
+TargetMeth:AddDropdown({
+    Name = "Kick Delay Mode",
+    Options = { "Normal", "Faster but worse" },
+    Default = "Normal",
+    Flag = "Target_KickDelay",
+    Callback = function(v) State.Values.NKDelayMode = v end,
+})
+
+TargetMeth:AddToggle({
+    Name = "Loop Ragdoll",
+    Default = true,
+    Flag = "Target_RagdollNK",
+    Callback = function(v) State.Toggles.RagdollInNK = v end,
+})
+
+TargetMeth:AddToggle({
+    Name = "Remove Anti-Kick",
+    Default = true,
+    Flag = "Target_RemoveAK",
+    Callback = function(v) State.Toggles.DeleteShurInNK = v end,
+})
+
+TargetMeth:AddSlider({
+    Name = "Kick Height",
+    Default = 15, Min = 0, Max = 28, Increment = 1, ValueName = "studs",
+    Flag = "Target_KickHeight",
+    Callback = function(v) State.Values.NKOffset = v end,
+})
+
+TargetMeth:AddDropdown({
+    Name = "Kick Server Method",
+    Options = { "Circle + Lag", "Void" },
+    Default = "Circle + Lag",
+    Flag = "Target_KickServerM",
+    Callback = function(v) State.Values.KickServerMethod = v end,
+})
+
+TargetMeth:AddDivider()
+
+-- Remove-Gucci
+TargetMeth:AddToggle({
+    Name = "Break Player? [Inf Ragdoll]",
+    Default = false,
+    Flag = "Target_RagdollRG",
+    Callback = function(v) State.Toggles.RagdollInRG = v end,
+})
+
+TargetMeth:AddDivider()
+
+-- Delete Limbs
+TargetMeth:AddDropdown({
+    Name = "Limbs to Delete (Target)",
+    Options = { "Legs", "Arms", "All" },
+    Default = "All",
+    Flag = "Target_Limbs",
+    Callback = function(v) State.Values.TargetedLimbTE = v end,
+})
+
+-- ============================================
+-- Tab: Blobman
+-- ============================================
+local BlobLeft  = Tabs.Blobman:AddSection({ Name = "Target",         Side = "Left"  })
+local BlobApply = Tabs.Blobman:AddSection({ Name = "Apply",          Side = "Left"  })
+local BlobSet   = Tabs.Blobman:AddSection({ Name = "Settings",       Side = "Right" })
+local BlobMeth  = Tabs.Blobman:AddSection({ Name = "Method Settings",Side = "Right" })
+
+makePlayerDropdown(BlobLeft, "Blobman Targets", Lists.Blobman, true)
+
+BlobApply:AddToggle({
+    Name = "Loop Apply Method (Selected)",
+    Default = false,
+    Flag = "Blob_LoopSel",
+    Callback = function(v)
+        State.Toggles.LoopApplyMethod = v
+        if v then
+            startLoop("LoopApplyMethod", false, true, Lists.Blobman)
+        else
+            LoopTokens.LoopApplyMethod = (LoopTokens.LoopApplyMethod or 0) + 1
+        end
+    end,
+})
+
+BlobApply:AddToggle({
+    Name = "Loop Apply Method (Server)",
+    Default = false,
+    Flag = "Blob_LoopServ",
+    Callback = function(v)
+        State.Toggles.LoopApplyMethodServer = v
+        if v then
+            startLoop("LoopApplyMethodServer", true, true, Lists.Blobman)
+        else
+            LoopTokens.LoopApplyMethodServer = (LoopTokens.LoopApplyMethodServer or 0) + 1
+        end
+    end,
+})
+
+BlobApply:AddButton({
+    Name = "Apply Method (Selected)",
+    Callback = function()
+        for p in pairs(Lists.Blobman) do
+            if p.Parent and not IsProtectedPlayer(p) then
+                pcall(processPlayer, p, nil, false, true, nil)
+            end
+        end
+    end,
+})
+
+BlobApply:AddButton({
+    Name = "Apply Method (Server)",
+    Callback = function()
+        for p in pairs(Lists.Blobman) do
+            if p.Parent and not IsProtectedPlayer(p) then
+                pcall(processPlayer, p, nil, true, true, nil)
+            end
+        end
+    end,
+})
+
+BlobSet:AddToggle({
+    Name = "Auto Sit Blobman",
+    Default = false,
+    Flag = "Blob_AutoSit",
+    Callback = function(v)
+        State.Toggles.AutoSeatBlobman = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.AutoSeatBlobman do
+                    local _, hrp, hum = Char()
+                    if hrp and hum then
+                        local seat = workspace:FindFirstChild("BlobmanSeat")
+                        if seat and seat:IsA("VehicleSeat") then seat:Sit(hum) end
+                    end
+                    task.wait(0.25)
+                end
+            end)
+        end
+    end,
+})
+
+BlobSet:AddToggle({
+    Name = "Freeze Blobman",
+    Default = false,
+    Flag = "Blob_Freeze",
+    Callback = function(v)
+        State.Toggles.FreezeBlobman = v
+    end,
+})
+
+BlobMeth:AddDropdown({
+    Name = "Blobman Method",
+    Options = { "Kick", "Kill", "Bring", "Lock", "Follow", "Remove Gucci" },
+    Default = "Kick",
+    Flag = "Blob_Method",
+    Callback = function(v) State.Values.BlobMethod = v end,
+})
+
+BlobMeth:AddDivider()
+
+BlobMeth:AddDropdown({
+    Name = "Kick Method",
+    Options = { "Grab-Drop", "Grab-Release" },
+    Default = "Grab-Drop",
+    Flag = "Blob_KickM",
+    Callback = function(v) State.Values.BKMethod = (v == "Grab-Drop") and 1 or 2 end,
+})
+
+BlobMeth:AddToggle({
+    Name = "Remove Anti-Kick [Sticky]",
+    Default = true,
+    Flag = "Blob_RemoveSticky",
+    Callback = function(v) State.Toggles.DeleteShurInBlobK = v end,
+})
+
+BlobMeth:AddToggle({
+    Name = "Net Owner Spam",
+    Default = false,
+    Flag = "Blob_NetOwner",
+    Callback = function(v) State.Toggles.NetworkOwnerInKick = v end,
+})
+
+BlobMeth:AddDivider()
+
+BlobMeth:AddSlider({
+    Name = "X Offset", Default = 0, Min = -5, Max = 5, Increment = 0.1,
+    Flag = "Blob_OffX",
+})
+BlobMeth:AddSlider({
+    Name = "Y Offset", Default = 25, Min = 10, Max = 40, Increment = 0.1,
+    Flag = "Blob_OffY",
+})
+BlobMeth:AddSlider({
+    Name = "Z Offset", Default = 0, Min = -5, Max = 5, Increment = 0.1,
+    Flag = "Blob_OffZ",
+})
+
+-- ============================================
+-- Tab: Invincibility
+-- ============================================
+local InvAntis = Tabs.Invincibility:AddSection({ Name = "Antis",          Side = "Left"  })
+local InvCounter = Tabs.Invincibility:AddSection({ Name = "Counter-attack", Side = "Left"  })
+local InvMisc  = Tabs.Invincibility:AddSection({ Name = "Miscellaneous", Side = "Right" })
+local InvConf  = Tabs.Invincibility:AddSection({ Name = "Config",        Side = "Right" })
+
+-- Antis
+InvAntis:AddToggle({
+    Name = "Anti Grab",
+    Default = false,
+    Flag = "Inv_AntiGrab",
+    Callback = function(v)
+        State.Toggles.AntiGrab = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.AntiGrab do
+                    local isHeld = LocalPlayer:FindFirstChild("IsHeld")
+                    if isHeld and isHeld.Value then
+                        if RemoteCache.Struggle then RemoteCache.Struggle:FireServer() end
+                    end
+                    task.wait(0.05)
+                end
+            end)
+        end
+    end,
+})
+
+InvAntis:AddToggle({
+    Name = "[GUCCI] Anti Grab",
+    Default = false,
+    Flag = "Inv_Gucci",
+    Callback = function(v)
+        State.Toggles.GucciAntiGrab = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.GucciAntiGrab do
+                    local char, hrp, hum = Char()
+                    if hrp and hum and hum.Health > 0 then
+                        local seat = workspace:FindFirstChild("BlobmanSeat")
+                        if seat and seat:IsA("VehicleSeat") and seat.Occupant ~= hum then
+                            hum.Sit = false
+                            pcall(function() seat:Sit(hum) end)
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Blobman",
+    Default = false,
+    Flag = "Inv_AntiBlob",
+    Callback = function(v) State.Toggles.AntiBlobman = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Network Ownership",
+    Default = false,
+    Flag = "Inv_AntiNet",
+    Callback = function(v) State.Toggles.AntiInputLag = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Explosion",
+    Default = false,
+    Flag = "Inv_AntiExp",
+    Callback = function(v) State.Toggles.AntiExplosion = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Burn",
+    Default = false,
+    Flag = "Inv_AntiBurn",
+    Callback = function(v) State.Toggles.AntiBurn = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Void",
+    Default = false,
+    Flag = "Inv_AntiVoid",
+    Callback = function(v)
+        State.Toggles.AntiVoid = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.AntiVoid do
+                    local _, hrp = Char()
+                    if hrp and (hrp.Position.Y >= 10000 or hrp.Position.Y <= -500) then
+                        Actions.Teleport(hrp, CFrame.new(0, 15, 0))
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Kick",
+    Default = false,
+    Flag = "Inv_AntiKick",
+    Callback = function(v) State.Toggles.AntiKick = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "[Break PCLD] Anti Kick",
+    Default = false,
+    Flag = "Inv_AntiKick2",
+    Callback = function(v) State.Toggles.AntiKick2 = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Sticky",
+    Default = false,
+    Flag = "Inv_AntiSticky",
+    Callback = function(v) State.Toggles.AntiSticky = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Snowball",
+    Default = false,
+    Flag = "Inv_AntiSnow",
+    Callback = function(v) State.Toggles.AntiSnowball = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Banana",
+    Default = false,
+    Flag = "Inv_AntiBanana",
+    Callback = function(v) State.Toggles.AntiBanana = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Paint",
+    Default = false,
+    Flag = "Inv_AntiPaint",
+    Callback = function(v) State.Toggles.AntiPaint = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Poison",
+    Default = false,
+    Flag = "Inv_AntiPoison",
+    Callback = function(v) State.Toggles.AntiPoison = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Anti Lag",
+    Default = false,
+    Flag = "Inv_AntiLag",
+    Callback = function(v)
+        State.Toggles.AntiLag = v
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local c1 = ps and ps:FindFirstChild("CharacterAndBeamMove")
+        local c2 = ps and ps:FindFirstChild("StickyPartsTouchDetection")
+        if c1 then c1.Enabled = not v end
+        if c2 then c2.Enabled = not v end
+    end,
+})
+
+InvAntis:AddToggle({
+    Name = "Auto Anti Lag",
+    Default = true,
+    Flag = "Inv_AutoAntiLag",
+    Callback = function(v) State.Toggles.AutoAntiLag = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Auto Reset",
+    Default = true,
+    Flag = "Inv_AutoReset",
+    Callback = function(v) State.Toggles.AutoReset = v end,
+})
+
+InvAntis:AddToggle({
+    Name = "Loop TP",
+    Default = false,
+    Flag = "Inv_LoopTP",
+    Callback = function(v)
+        State.Toggles.LoopTP = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.LoopTP do
+                    local _, hrp = Char()
+                    if hrp then
+                        Actions.Teleport(hrp, CFrame.new(
+                            math.random(-1000, 1000), -7.35, math.random(-1000, 1000)
+                        ))
+                    end
+                    task.wait(0.04)
+                end
+            end)
+        end
+    end,
+})
+
+-- Counter-attack
+InvCounter:AddDropdown({
+    Name = "Consequences",
+    Options = { "Grab", "Kill", "Void", "Delete Limbs", "Fling", "Teleport to Spawn", "Anchor" },
+    Default = "Kill",
+    Flag = "Inv_CADropdown",
+    Callback = function(v) State.Values.CounterMethod = v end,
+})
+
+InvCounter:AddToggle({
+    Name = "Counter Attack",
+    Default = false,
+    Flag = "Inv_CAToggle",
+    Callback = function(v)
+        State.Toggles.CounterAttack = v
+        if v then
+            task.spawn(function()
+                while State.Toggles.CounterAttack do
+                    local char = LocalPlayer.Character
+                    local head = char and char:FindFirstChild("Head")
+                    local po = head and head:FindFirstChild("PartOwner")
+                    if po and po.Value ~= "" and po.Value ~= LocalPlayer.Name then
+                        local grabber = Players:FindFirstChild(po.Value)
+                        if grabber and not IsProtectedPlayer(grabber) then
+                            local method = State.Values.CounterMethod
+                            if method == "Kill" then Actions.Kill(grabber)
+                            elseif method == "Void" then Actions.Void(grabber)
+                            elseif method == "Bring" then Actions.BringPlayer(grabber)
+                            elseif method == "Delete Limbs" then Actions.BreakLimb(grabber, State.Values.TargetedLimbCA)
+                            elseif method == "Remove Gucci" then Actions.RemoveGucci(grabber) end
+                        end
+                    end
+                    task.wait(0.15)
+                end
+            end)
+        end
+    end,
+})
+
+InvCounter:AddDropdown({
+    Name = "Limbs to Delete",
+    Options = { "Legs", "Arms", "All" },
+    Default = "All",
+    Flag = "Inv_CALimbs",
+    Callback = function(v) State.Values.TargetedLimbCA = v end,
+})
+
+-- Miscellaneous
+InvMisc:AddToggle({
+    Name = "Disable Void",
+    Default = true,
+    Flag = "Inv_DisVoid",
+    Callback = function(v)
+        State.Toggles.DestroyVoid = v
+        workspace.FallenPartsDestroyHeight = v and 0/0 or -100
+    end,
+})
+
+InvMisc:AddToggle({
+    Name = "Water Walk",
+    Default = false,
+    Flag = "Inv_WaterWalk",
+    Callback = function(v) State.Toggles.WaterWalk = v end,
+})
+
+InvMisc:AddToggle({
+    Name = "Noclip Barrier",
+    Default = false,
+    Flag = "Inv_NoclipBarrier",
+    Callback = function(v)
+        local plots = workspace:FindFirstChild("Plots")
+        if not plots then return end
+        for _, plot in ipairs(plots:GetChildren()) do
+            local barrier = plot:FindFirstChild("Barrier")
+            if barrier then
+                for _, p in ipairs(barrier:GetChildren()) do
+                    if p:IsA("BasePart") and p.Name == "PlotBarrier" then
+                        p.CanCollide = not v
+                    end
+                end
+            end
+        end
+    end,
+})
+
+InvMisc:AddToggle({
+    Name = "Anti-Fling [Objects Noclip]",
+    Default = false,
+    Flag = "Inv_AntiFling",
+    Callback = function(v) State.Toggles.OtherInvCollisions = v end,
+})
+
+InvMisc:AddLabel("Last person who grabbed you: nobody", { Flag = "Inv_LastGrabbed" })
+
+-- Config
+InvConf:AddSlider({
+    Name = "Auto Anti-Lag Sensitivity",
+    Default = 3, Min = 1, Max = 20, Increment = 1, ValueName = "FPS",
+    Flag = "Inv_AntiLagSens",
+    Callback = function(v) State.Values.AntiLagSens = v end,
+})
+
+InvConf:AddDivider()
+
+InvConf:AddToggle({
+    Name = "Auto Leave",
+    Default = true,
+    Flag = "Inv_AutoLeave",
+    Callback = function(v) State.Toggles.AutoLeave = v end,
+})
+
+InvConf:AddDivider()
+
+InvConf:AddDropdown({
+    Name = "Anti-Grab Type",
+    Options = { "Normal", "No Ragdoll", "Anti-Kill", "Escapes Anything, but buggy" },
+    Default = "Normal",
+    Flag = "Inv_AGType",
+    Callback = function(v) State.Values.AGType = v end,
+})
+
+InvConf:AddDropdown({
+    Name = "GUCCI Type",
+    Options = { "Blobman", "Tractor [Invisible]", "Train [Invisible]", "Sleigh [Invisible]" },
+    Default = "Blobman",
+    Flag = "Inv_GucciType",
+    Callback = function(v) State.Values.GucciType = v end,
+})
+
+-- ============================================
+-- Invincibility Loop: track grabber
+-- ============================================
+task.spawn(function()
+    while task.wait(0.3) do
+        local char = LocalPlayer.Character
+        local head = char and char:FindFirstChild("Head")
+        local po = head and head:FindFirstChild("PartOwner")
+        if po and po.Value ~= "" then
+            local grabber = Players:FindFirstChild(po.Value)
+            if grabber and grabber ~= LocalPlayer then
+                State.Values.WhoGrabbed = grabber.DisplayName .. " (@" .. grabber.Name .. ")"
+                local lbl = Library.Flags and Library.Flags["Inv_LastGrabbed"]
+                if lbl and lbl.SetText then
+                    lbl:SetText("Last person who grabbed you: " .. State.Values.WhoGrabbed)
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================
+-- Init
+-- ============================================
+Library:SetConfigTab("Target")
+Library:LoadAutoloadConfigs()
+Library:SaveAndLoadSizes()
+Library:Init()
+
+Library:MakeNotification({
+    Name = "Resonance Loaded",
+    Content = string.format("Target / Blobman / Invincibility — %.2fs", os.clock() - startTime),
+    Image = "crown",
+    Time = 4,
+})
