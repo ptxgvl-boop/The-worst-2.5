@@ -1,1011 +1,1195 @@
 -- ============================================================
--- The Worst 2.5 × Resonance | Merged Build
--- The Worst original systems preserved + Resonance systems
--- Skipped: Keybinds, Misc, Auto-Clicker (per user request)
+--  The Worst 2.5  |  BetterOrion UI Edition
+--  Converted from XOCU v2.8
 -- ============================================================
 
-Players            = game:GetService('Players')
-TweenService       = game:GetService('TweenService')
-plr                = Players.LocalPlayer
+local _characterAndBeamMove = game.Players.LocalPlayer.PlayerScripts:FindFirstChild("CharacterAndBeamMove")
+if _characterAndBeamMove then _characterAndBeamMove.Enabled = false end
+
+local getgenv = getgenv or function() return _G end
+
+local Players     = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui     = game:GetService("CoreGui")
+
+pcall(function()
+    local _iySource = game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source")
+    local _iyChunk = loadstring(_iySource)
+    if _iyChunk then _iyChunk() end
+end)
 
 -- ============================================================
--- [1] TopRight CoinsFrame Styling (The Worst original)
+-- Performance HUD
 -- ============================================================
-gui        = plr:WaitForChild('PlayerGui'):WaitForChild('MenuGui')
-TopRight   = gui:WaitForChild('TopRight')
-CoinsFrame = TopRight:WaitForChild('CoinsFrame')
-CoinsDisplay = CoinsFrame:WaitForChild('CoinsDisplay')
-CoinImage  = CoinsDisplay:WaitForChild('CoinImage')
-Coins      = CoinsDisplay:WaitForChild('Coins')
-CoinsButton = CoinsFrame:WaitForChild('CoinsButton')
-
-for _, v in ipairs(CoinsFrame:GetChildren()) do
-    if v:IsA('UICorner') or v:IsA('UIStroke') or v:IsA('UIPadding') or v:IsA('UIGradient') then
-        v:Destroy()
-    end
-end
-for _, v in ipairs(CoinsDisplay:GetChildren()) do
-    if v:IsA('UIListLayout') then v:Destroy() end
-end
-
-blur = Instance.new('ImageLabel')
-blur.Name = 'GlassBlur'
-blur.BackgroundTransparency = 1
-blur.Size = UDim2.new(1, 0, 1, 0)
-blur.Image = 'rbxassetid://8992230677'
-blur.ImageTransparency = 0.88
-blur.ScaleType = Enum.ScaleType.Stretch
-blur.ZIndex = CoinsFrame.ZIndex - 1
-blur.Parent = CoinsFrame
-
-CoinsFrame.BackgroundColor3 = Color3.fromRGB(12, 14, 18)
-CoinsFrame.BackgroundTransparency = 0.35
-CoinsFrame.AutomaticSize = Enum.AutomaticSize.X
-CoinsFrame.Size = UDim2.new(0, 0, 0, 74)
-
-local corner = Instance.new('UICorner')
-corner.CornerRadius = UDim.new(1, 0)
-corner.Parent = CoinsFrame
-
-local padding = Instance.new('UIPadding')
-padding.PaddingLeft = UDim.new(0, 10)
-padding.PaddingRight = UDim.new(0, 10)
-padding.Parent = CoinsFrame
-
-local stroke = Instance.new('UIStroke')
-stroke.Thickness = 1
-stroke.Transparency = 0.6
-stroke.Color = Color3.fromRGB(255, 255, 255)
-stroke.Parent = CoinsFrame
-
-local borderGrad = Instance.new('UIGradient')
-borderGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(200, 200, 220)),
-    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(240, 240, 255)),
-    ColorSequenceKeypoint.new(0.6, Color3.fromRGB(220, 220, 240)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 220)),
-})
-borderGrad.Parent = stroke
-
 task.spawn(function()
-    while CoinsFrame.Parent do
-        for i = 0, 360, 1 do
-            borderGrad.Rotation = i
-            task.wait(0.02)
-        end
+    local apexCoreGui    = (gethui and gethui()) or game:GetService("CoreGui")
+    local apexRunService = game:GetService("RunService")
+    local oldApex = apexCoreGui:FindFirstChild("TWWatermark")
+    if oldApex then oldApex:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "TWWatermark"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.DisplayOrder = 999999
+    gui.Parent = apexCoreGui
+
+    local frame = Instance.new("Frame")
+    frame.Name = "TWBar"
+    frame.Size = UDim2.new(0, 360, 0, 37)
+    frame.Position = UDim2.new(0.5, -180, 0, 8)
+    frame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+    frame.BackgroundTransparency = 0.06
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 3)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(0, 0, 0)
+    stroke.Transparency = 0.15
+    stroke.Thickness = 1.5
+    stroke.Parent = frame
+
+    local icon = Instance.new("ImageLabel")
+    icon.BackgroundTransparency = 1
+    icon.Position = UDim2.new(0, 15, 0, 5)
+    icon.Size = UDim2.new(0, 27, 0, 27)
+    icon.Image = "rbxassetid://108216966431078"
+    icon.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 56, 0, 0)
+    label.Size = UDim2.new(1, -64, 1, 0)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.RichText = true
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Parent = frame
+
+    local hudTextHex = "#FFFFFF"
+    local function colorToHex(c)
+        return string.format("#%02X%02X%02X",
+            math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
     end
-end)
-
-TweenService:Create(CoinsFrame, TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {BackgroundTransparency = 0.25}):Play()
-
-CoinsDisplay.BackgroundTransparency = 1
-CoinsDisplay.AutomaticSize = Enum.AutomaticSize.X
-CoinsDisplay.Size = UDim2.new(0, 0, 1, 0)
-
-local layout = Instance.new('UIListLayout')
-layout.FillDirection = Enum.FillDirection.Horizontal
-layout.VerticalAlignment = Enum.VerticalAlignment.Center
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-layout.Padding = UDim.new(0, 6)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = CoinsDisplay
-
-Coins.LayoutOrder = 1
-Coins.BackgroundTransparency = 1
-Coins.AutomaticSize = Enum.AutomaticSize.X
-Coins.TextXAlignment = Enum.TextXAlignment.Left
-Coins.Font = Enum.Font.GothamBold
-Coins.TextSize = 34
-
-local textGrad = Instance.new('UIGradient')
-textGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(200, 200, 230)),
-    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 255, 255)),
-    ColorSequenceKeypoint.new(0.6, Color3.fromRGB(230, 230, 250)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 200, 230)),
-})
-textGrad.Parent = Coins
-
-task.spawn(function()
-    while Coins.Parent do
-        for i = 0, 360, 2 do
-            textGrad.Rotation = i
-            task.wait(0.03)
-        end
+    local function updateHudText(fps, ping)
+        label.Text = string.format(
+            "<font color='%s'><b>The Worst 2.5</b>  |  %d fps  |  %d ms</font>",
+            hudTextHex, fps, ping)
     end
-end)
+    updateHudText(60, 0)
 
-CoinImage.LayoutOrder = 2
-CoinImage.BackgroundTransparency = 1
-CoinImage.Size = UDim2.new(0, 64, 0, 64)
-CoinImage.ImageColor3 = Color3.fromRGB(220, 220, 240)
-CoinImage.AnchorPoint = Vector2.new(0, 0.5)
-CoinImage.Position = UDim2.new(0, 0, 0.5, 0)
-
-task.defer(function() CoinImage.Image = "rbxassetid://92219509537334" end)
-TweenService:Create(CoinImage, TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-    Position = CoinImage.Position + UDim2.new(0, 0, 0, -4),
-}):Play()
-
-CoinsButton.BackgroundTransparency = 1
-CoinsButton.Text = ''
-CoinsButton.Size = UDim2.new(1, 0, 1, 0)
-CoinsButton.ZIndex = CoinsFrame.ZIndex + 5
-
-function tween(obj, ti, props) TweenService:Create(obj, ti, props):Play() end
-
-CoinsButton.MouseEnter:Connect(function()
-    tween(stroke, TweenInfo.new(0.2), {Transparency = 0.15})
-    tween(CoinImage, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(255, 255, 255)})
-end)
-CoinsButton.MouseLeave:Connect(function()
-    tween(stroke, TweenInfo.new(0.2), {Transparency = 0.6})
-    tween(CoinImage, TweenInfo.new(0.2), {ImageColor3 = Color3.fromRGB(220, 220, 240)})
-end)
-CoinsButton.MouseButton1Down:Connect(function()
-    tween(CoinsFrame, TweenInfo.new(0.08), {Size = UDim2.new(0, 0, 0, 71)})
-end)
-CoinsButton.MouseButton1Up:Connect(function()
-    tween(CoinsFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back), {Size = UDim2.new(0, 0, 0, 74)})
-end)
-
--- ============================================================
--- [2] Menu Gold Theme (The Worst original)
--- ============================================================
-function StyleMenuUI()
-    local player     = game:GetService("Players").LocalPlayer
-    local playerGui  = player:WaitForChild("PlayerGui")
-    local menuGui    = playerGui:WaitForChild("MenuGui")
-    local menu       = menuGui:WaitForChild("Menu")
-
-    local black      = Color3.fromRGB(8, 10, 16)
-    local dark       = Color3.fromRGB(18, 16, 14)
-    local gold       = Color3.fromRGB(255, 215, 0)
-    local goldLight  = Color3.fromRGB(255, 235, 150)
-    local goldDark   = Color3.fromRGB(200, 160, 0)
-    local cornerRadius = UDim.new(0, 12)
-
-    local function roundCorners(obj)
-        local c = obj:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", obj)
-        c.CornerRadius = cornerRadius
-    end
-    local function addGoldGradient(obj, rotation)
-        local g = obj:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
-        g.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, goldDark),
-            ColorSequenceKeypoint.new(0.2, goldLight),
-            ColorSequenceKeypoint.new(0.5, gold),
-            ColorSequenceKeypoint.new(0.8, goldLight),
-            ColorSequenceKeypoint.new(1, goldDark)
-        }
-        g.Rotation = rotation or 45
-        g.Parent = obj
-    end
-    local function addGoldStroke(obj, thickness, transparency)
-        local s = obj:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
-        s.Color = gold; s.Thickness = thickness or 1.5; s.Transparency = transparency or 0.5
-        s.Parent = obj
-        return s
-    end
-
-    local tabBar = menu:WaitForChild("TabBar")
-    tabBar.BackgroundColor3 = black
-    tabBar.BackgroundTransparency = 0.2
-    tabBar.Size = UDim2.new(tabBar.Size.X.Scale, tabBar.Size.X.Offset, 0.9999, tabBar.Size.Y.Offset)
-    roundCorners(tabBar); addGoldStroke(tabBar, 1, 0.6)
-
-    for _, frame in ipairs(menu:WaitForChild("TabContents"):GetChildren()) do
-        if frame:IsA("Frame") then
-            frame.BackgroundColor3 = black
-            frame.BackgroundTransparency = 0.65
-            roundCorners(frame); addGoldStroke(frame, 1, 0.4)
-
-            local title = frame:FindFirstChild("Title")
-            if title then
-                title.BackgroundColor3 = dark; title.BackgroundTransparency = 0.3
-                roundCorners(title); addGoldStroke(title, 1, 0.3)
-                title.Size = UDim2.new(title.Size.X.Scale * 0.975, title.Size.X.Offset, title.Size.Y.Scale, title.Size.Y.Offset)
-                local tg = title:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
-                tg.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0, goldDark),
-                    ColorSequenceKeypoint.new(0.5, goldLight),
-                    ColorSequenceKeypoint.new(1, goldDark)
-                }
-                tg.Rotation = 90; tg.Parent = title
-            end
-
-            local st = frame:FindFirstChild("SortingTabs")
-            if st then
-                st.BackgroundColor3 = dark; st.BackgroundTransparency = 0.4
-                roundCorners(st); addGoldStroke(st, 1, 0.3)
-            end
-
-            local contents = frame:FindFirstChild("Contents")
-            if contents then
-                contents.BackgroundColor3 = Color3.fromRGB(25, 22, 18)
-                contents.BackgroundTransparency = 0.5
-                roundCorners(contents); addGoldGradient(contents, 45); addGoldStroke(contents, 1.5, 0.3)
-            end
-
-            local fav = frame:FindFirstChild("FavoritesFrame")
-            if fav then
-                fav.BackgroundColor3 = black; fav.BackgroundTransparency = 0.8
-                roundCorners(fav); addGoldStroke(fav, 1, 0.3)
-            end
-        end
-    end
-end
-StyleMenuUI()
-
--- ============================================================
--- [3] Services
--- ============================================================
-local RunService         = game:GetService('RunService')
-local Players            = game:GetService('Players')
-local ReplicatedStorage  = game:GetService('ReplicatedStorage')
-local UserInputService   = game:GetService('UserInputService')
-local TweenService       = game:GetService('TweenService')
-local HttpService        = game:GetService('HttpService')
-local TeleportService    = game:GetService('TeleportService')
-local MarketplaceService = game:GetService('MarketplaceService')
-local SoundService       = game:GetService('SoundService')
-local Stats              = game:GetService('Stats')
-local LocalPlayer        = Players.LocalPlayer
-local CoreGui            = game:GetService("CoreGui")
-
--- ============================================================
--- [4] Load Obsidian Library (The Worst uses same lib as Resonance)
--- ============================================================
-Library      = loadstring(game:HttpGet("https://raw.githubusercontent.com/PaeIsEpic/tuff67mangomustard/refs/heads/main/tuffo"))()
-ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/PaeIsEpic/tuff67mangomustard/refs/heads/main/tuffus"))()
-SaveManager  = loadstring(game:HttpGet("https://raw.githubusercontent.com/PaeIsEpic/tuff67mangomustard/refs/heads/main/tuffih"))()
-Options      = Library.Options
-Toggles      = Library.Toggles
-Library.ForceCheckbox = false
-
--- ============================================================
--- [5] Resonance Main systems (loaded into isolated env)
--- ============================================================
--- Resonance Main is loaded as-is. It creates its OWN hidden window
--- that we ignore. We hook its tabs into The Worst's Window.
--- Skipped tabs are commented out inside ResonanceMain.
-local ResonanceRunning = false
-local ResonanceStarting = false
-local ResonanceEnv = getgenv and getgenv() or _G
-
-local resonanceSystems = nil
-do
-    local ResonanceLibrarySource = [[
--- Minimal Resonance Library bridge: exposes Options/Toggles table
--- so Resonance Main can register its systems without needing full lib.
-local tbl = {}
-getgenv().ResonanceLibOptions = tbl
-return { Options = tbl, Toggles = {} }
-]]
-
-    -- Resonance Main loads its own Library internally. We let it, and
-    -- just extract the runtime system table (tbl12) via a shared global.
-    local ResonanceMainSource = [==[
--- ============================================================
--- Resonance Main module — stripped of its own UI creation
--- Original code loads its own Library and creates its own Window.
--- We wrap so it populates getgenv().ResonanceRuntime with tbl12.
--- The tab-creation lines for Keybinds/Misc/AutoClicker are removed
--- by simply not attaching them; the rest still registers on its own
--- window which we hide.
--- ============================================================
-]==]
-end
-
--- Instead of surgically extracting Resonance Main (impossible inside
--- a single script block), we load the full Resonance source the same
--- way the user provided. Its own window will be created but hidden;
--- we expose the runtime table via ResonanceRuntime so The Worst can
--- call functions like tbl12.Grab, tbl12.Kill, etc.
-
-local RESONANCE_BOOTSTRAP = [[
--- Paste the ENTIRE Resonance Bootstrapped source here, but modify
--- the tab creation block to skip Keybinds / Misc / AutoClicker.
--- The full source is what the user supplied in resonanseopensourse.lua.txt
-]]
--- See note below: we run the user-supplied source as-is but hide its window.
-
-do
-    local ok, src = pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/ScriptHubFTAP/Resonance/main/v2.9.lua")
-    end)
-    if not ok or type(src) ~= "string" or #src < 500 then
-        -- Fallback: user must embed the provided source locally
-        warn("[Resonance] Remote source unavailable — embed locally")
-    end
-end
-
--- ============================================================
--- [6] The Worst Window
--- ============================================================
-Window = Library:CreateWindow({
-    Title = "<b>The Worst 2.5 × Resonance</b>",
-    Icon = "rbxassetid://92219509537334",
-    Footer = "<b>The Worst 2.5 × Resonance</b>",
-    NotifySide = "Right",
-    CornerRadius = 20,
-    ShowCustomCursor = false,
-    EnableCompacting = true,
-    SidebarCompacted = true,
-    BackgroundImage = "rbxassetid://",
-    Animations = {
-        TabSwitch = true,
-        Groupbox = true,
-        Dropdown = true,
-        KeyPicker = true
-    },
-    TabTransitionTime = 0.22,
-    TabSwipeOffset = 26,
-    TabSwipeFrom = "bottom"
-})
-
--- Typing footer animation
-task.spawn(function()
-    local letters = {'T','h','e',' ','W','o','r','s','t',' ','×',' ','R','e','s','o'}
-    local i, rev = 1, false
-    while task.wait(0.5) do
-        local s = ''
-        for k = 1, i do s = s .. letters[k] end
-        if rev then i -= 1 else i += 1 end
-        Window:SetFooter(s .. ' | Merged')
-        if i > #letters then rev, i = true, #letters; task.wait(2)
-        elseif i <= 0 then rev, i = false, 1 end
-    end
-end)
-
--- ============================================================
--- [7] Tabs (The Worst original + Resonance tabs, minus skipped)
--- ============================================================
-Tabs = {
-    -- The Worst originals
-    MainTab   = Window:AddTab("<b>Main</b>", "house", "<b>Dashboard</b>"),
-    Player    = Window:AddTab("<b>Player</b>", "person-standing", "<b>Movement and Players</b>"),
-    Defense   = Window:AddTab("<b>Defenses</b>", "shield", "<b>Protection</b>"),
-    Target    = Window:AddTab("<b>Target Action</b>", "crosshair", "<b>Target Stuff</b>"),
-    Blob      = Window:AddTab("<b>Blob Action</b>", "103665213247287", "<b>Blobman</b>"),
-    Grab      = Window:AddTab("<b>Grabs</b>", "hand-metal", "<b>Grabs and Auras</b>"),
-    Visual    = Window:AddTab("<b>Visuals</b>", "eye-dashed", "<b>Visuals</b>"),
-    ToyMain   = Window:AddTab("<b>Fun Toys</b>", "circle-pile", "<b>Fun Toys</b>"),
-    ToyTab    = Window:AddTab("<b>Toys</b>", "shapes", "<b>Toys</b>"),
-    FigureTab = Window:AddTab("<b>Figure</b>", "mouse-pointer", "<b>Poses</b>"),
-
-    -- Resonance-merged tabs (no Keybinds, no Misc, no Auto-Clicker)
-    Combat        = Window:AddTab("<b>Combat [Reso]</b>", "swords", "<b>Resonance combat systems</b>"),
-    Invincibility = Window:AddTab("<b>Invincibility [Reso]</b>", "shield-check", "<b>Resonance defenses</b>"),
-    BlobmanReso   = Window:AddTab("<b>Blobman [Reso]</b>", "venetian-mask", "<b>Resonance blobman</b>"),
-    ToysReso      = Window:AddTab("<b>Toys [Reso]</b>", "shapes", "<b>Resonance toys</b>"),
-    ListsReso     = Window:AddTab("<b>Lists [Reso]</b>", "scroll-text", "<b>Resonance lists</b>"),
-    SettingsReso  = Window:AddTab("<b>Settings [Reso]</b>", "settings", "<b>Resonance settings</b>"),
-
-    -- The Worst meta tabs
-    Keybinds    = Window:AddTab("<b>Keybind</b>", "keyboard", "<b>Keybinds</b>"),
-    Whitelist   = Window:AddTab("<b>Whitelist</b>", "scroll-text", "<b>Whitelist</b>"),
-    ["UI Settings"] = Window:AddTab("<b>UI Settings</b>", "cog")
-}
-
--- ============================================================
--- [8] Helper functions (The Worst original)
--- ============================================================
-local C = {
-    Text  = 'rgb(232, 230, 242)',
-    Sub   = 'rgb(155, 153, 172)',
-    Muted = 'rgb(90, 88, 105)',
-    Faint = 'rgb(52, 50, 66)',
-    Green = 'rgb(110, 210, 130)',
-    Amber = 'rgb(220, 175, 80)',
-    Red   = 'rgb(215, 75, 75)',
-    Blue  = 'rgb(110, 165, 240)',
-}
-local function Col(text, colour) return ("<font color='%s'>%s</font>"):format(colour, text) end
-local function Bold(text) return '<b>' .. text .. '</b>' end
-local function Sep() return Col(('\u{2500}'):rep(20), C.Faint) end
-local function Row(key, val, valCol)
-    return Bold(key) .. Col('   ', C.Faint) .. Col(val, valCol or C.Sub)
-end
-local function Typewrite(label, finalText, speed)
-    speed = speed or 0.04
-    task.spawn(function()
-        local plain = finalText:gsub('<[^>]+>', '')
-        for i = 1, #plain do
-            label:SetText(plain:sub(1, i))
-            task.wait(speed)
-        end
-        label:SetText(finalText)
-    end)
-end
-local function Cascade(fns, gap)
-    gap = gap or 0.1
-    task.spawn(function()
-        for _, f in ipairs(fns) do f(); task.wait(gap) end
-    end)
-end
-local function FormatUptime(s)
-    local h = s // 3600
-    local m = (s % 3600) // 60
-    local sc = s % 60
-    if h > 0 then return ('%dh %02dm'):format(h, m)
-    elseif m > 0 then return ('%dm %02ds'):format(m, sc)
-    else return sc .. 's' end
-end
-
--- ============================================================
--- [9] Main tab — Profile / Activity / Scripts / Watermarks
--- ============================================================
-local ProfileBox = Tabs.MainTab:AddLeftGroupbox('<b>Profile</b>', 'user')
-local SessionBox = Tabs.MainTab:AddRightGroupbox('<b>Activity</b>', 'activity')
-local Scriptblox = Tabs.MainTab:AddRightTabbox('<b>Script</b>', 'zap')
-local QuickBox        = Scriptblox:AddTab("<b>Scripts</b>", "zap")
-local WatermarkGroup  = Scriptblox:AddTab("<b>Watermarks</b>", "waves-horizontal")
-
-task.spawn(function()
-    local ok, url = pcall(function()
-        return Players:GetUserThumbnailAsync(LocalPlayer.UserId,
-            Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size150x150)
-    end)
-    if ok and url then
-        ProfileBox:AddImage('avatar', { Image = url, Height = 215 })
-    end
-    task.wait(0.15)
-    local nameLabel = ProfileBox:AddLabel('')
-    task.wait(0.05)
-    Typewrite(nameLabel, Bold(Col(LocalPlayer.Name, C.Text)), 0.055)
-    task.wait(#LocalPlayer.Name * 0.055 + 0.1)
-    ProfileBox:AddLabel(Col(LocalPlayer.DisplayName, C.Muted))
-    task.wait(0.12)
-    ProfileBox:AddLabel(Sep())
-    task.wait(0.05)
-    Cascade({
-        function() ProfileBox:AddLabel(Row('User ID', tostring(LocalPlayer.UserId))) end,
-        function() ProfileBox:AddLabel(Row('Build', '<b>The Worst 2.5 × Resonance</b>', C.Amber)) end,
-    }, 0.09)
-end)
-
-task.spawn(function()
-    task.wait(0.3)
-    local gameName = 'Unknown Game'
-    pcall(function() gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name:lower() end)
-    if #gameName > 24 then gameName = gameName:sub(1, 22) .. '\u{2026}' end
-
-    local ok1, pc = pcall(function() return #Players:GetPlayers() end)
-    local ok2, mp = pcall(function() return Players.MaxPlayers end)
-    local pop = (ok1 and ok2) and (pc .. ' / ' .. mp) or '\u{2014}'
-
-    Cascade({
-        function() SessionBox:AddLabel(Row('Game', gameName, C.Blue)) end,
-        function() SessionBox:AddLabel(Row('Players', pop)) end,
-    }, 0.09)
-    task.wait(0.3)
-    SessionBox:AddLabel(Sep())
-    task.wait(0.05)
-
-    local uptL = SessionBox:AddLabel(Row('Uptime', '0s'))
-    local start = tick(); local last = -1
-    RunService.Heartbeat:Connect(function()
-        local s = math.floor(tick() - start)
-        if s ~= last then last = s; uptL:SetText(Row('Uptime', FormatUptime(s))) end
-    end)
-    task.wait(0.09)
-
-    local fpsL = SessionBox:AddLabel(Row('FPS', '\u{2014}'))
-    local lastT, frames = tick(), 0
-    RunService.RenderStepped:Connect(function()
-        frames += 1
-        local now = tick()
-        if now - lastT >= 0.5 then
-            local fps = math.floor(frames / (now - lastT)); frames, lastT = 0, now
-            local col = fps >= 60 and C.Green or fps >= 30 and C.Amber or C.Red
-            fpsL:SetText(Row('FPS', tostring(fps), col))
-        end
-    end)
-    task.wait(0.09)
-
-    local pingL = SessionBox:AddLabel(Row('Ping', '\u{2014}'))
-    local lastPing = -1
-    task.spawn(function()
-        while task.wait(0.5) do
-            local ok, ping = pcall(function()
-                return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-            end)
-            if ok and ping and ping ~= lastPing then
-                lastPing = ping
-                local col = ping <= 80 and C.Green or ping <= 150 and C.Amber or C.Red
-                pingL:SetText(Row('Ping', ping .. ' ms', col))
-            end
-        end
-    end)
-    task.wait(0.09)
-
-    local timeL = SessionBox:AddLabel(Row('Time', '\u{2014}'))
-    local lastTime = ""
-    task.spawn(function()
-        while task.wait(0.5) do
-            local t = os.date("%H:%M:%S")
-            if t ~= lastTime then lastTime = t; timeL:SetText(Row('Time', t, C.Blue)) end
-        end
-    end)
-end)
-
-task.spawn(function()
-    QuickBox:AddButton({
-        Text = Bold('Rejoin'),
-        Func = function()
-            Library:Notify({ Description = 'Rejoining\u{2026}' })
-            task.wait(0.8)
-            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    _G.TWPerformanceHUD = {
+        Frame = frame, Stroke = stroke, Label = label, Corner = corner,
+        SetTheme = function(theme)
+            theme = theme or {}
+            frame.BackgroundColor3 = theme.MainColor or Color3.fromRGB(8, 8, 12)
+            stroke.Color = theme.OutlineColor or Color3.fromRGB(0, 0, 0)
+            label.TextColor3 = theme.FontColor or Color3.fromRGB(255, 255, 255)
+            hudTextHex = colorToHex(theme.FontColor or Color3.fromRGB(255, 255, 255))
         end,
-    })
-    QuickBox:AddButton({
-        Text = Bold('Unload'),
-        Func = function()
-            task.wait(0.4)
-            Library:Unload()
+        SetCornerRadius = function(value)
+            corner.CornerRadius = UDim.new(0, math.clamp(tonumber(value) or 3, 0, 20))
         end,
-    })
-end)
-
--- ============================================================
--- [10] UI Settings — Notifications / Cursor / Interface / Background
--- ============================================================
-local notificationSoundId = 'rbxassetid://97643101798871'
-local notificationVolume = 0.5
-local notifiesEnabled = true
-local activeNotifications = {}
-local currentPreviewSound = nil
-local notificationsMuted = false
-local notifDuration = 4
-local enabledEvents = {
-    ['Player Left'] = true, ['Player Joined'] = true, ['Player Rejoined'] = true,
-    ['Friend Joined'] = true, ['New Account'] = true, Whitelisted = false,
-    ['FPS Drop'] = false, ['High Ping'] = false,
-}
-local playerLeaveTracker = {}
-
-local SettingsGroup = Tabs['UI Settings']:AddLeftGroupbox("<b>Display Settings</b>", "wrench")
-local DisplayTabbox = SettingsGroup:AddTabbox({ Side = 'Left', Name = 'Display Options' })
-local NotifyGroup   = Tabs['UI Settings']:AddLeftGroupbox("<b>Notifications</b>", "bell")
-local NotifyTabbox  = NotifyGroup:AddTabbox({ Side = 'Left', Name = 'Notification Options' })
-local GeneralTab    = NotifyTabbox:AddTab('<b>Main</b>', 'house')
-local EventsTab     = NotifyTabbox:AddTab('<b>Notifys</b>', 'user-plus')
-local SoundTab      = NotifyTabbox:AddTab('<b>Sound</b>', 'volume-2')
-
-GeneralTab:AddCheckbox('NotifiesEnabled', {
-    Text = 'Enable Notifications', Default = true,
-    Callback = function(Value)
-        notifiesEnabled = Value
-        if not Value then
-            for _, notif in pairs(activeNotifications) do
-                pcall(function()
-                    if notif and notif.Remove then notif:Remove() end
-                end)
-            end
-            activeNotifications = {}
-        end
-    end,
-})
-GeneralTab:AddCheckbox('NotificationsMuted', {
-    Text = 'Mute Sounds Only', Default = false,
-    Callback = function(Value) notificationsMuted = Value end,
-})
-GeneralTab:AddDivider('<b>Appearance</b>')
-GeneralTab:AddDropdown('NotificationSide', {
-    Text = 'Notification Side', Values = { 'Left', 'Right' }, Default = 'Right', Multi = false,
-    ValueImages = { Left = 'align-start-vertical', Right = 'align-end-vertical' },
-    Callback = function(Value) Library:SetNotifySide(Value) end,
-})
-GeneralTab:AddSlider('NotifDuration', {
-    Text = 'Duration', Min = 1, Max = 10, Default = 4, Rounding = 1, Compact = true, Suffix = 's',
-    Callback = function(Value) notifDuration = Value end,
-})
-GeneralTab:AddDivider('<b>Actions</b>')
-GeneralTab:AddButton({
-    Text = 'Test Notification', DoubleClick = false,
-    Func = function()
-        if not notifiesEnabled then return end
-        if playNotifySound then playNotifySound() end
-        Library:Notify({ Title = 'Test Notification', Description = 'This is a test notification.', Time = notifDuration or 4, Icon = 'bell' })
-    end,
-})
-
-EventsTab:AddDivider('<b>Player Events</b>')
-EventsTab:AddCheckbox('EventPlayerJoined',   { Text = 'Player Joined',   Default = true,  Callback = function(v) enabledEvents['Player Joined']   = v end })
-EventsTab:AddCheckbox('EventPlayerLeft',     { Text = 'Player Left',     Default = false, Callback = function(v) enabledEvents['Player Left']     = v end })
-EventsTab:AddCheckbox('EventPlayerRejoined', { Text = 'Player Rejoined', Default = false, Callback = function(v) enabledEvents['Player Rejoined'] = v end })
-EventsTab:AddCheckbox('EventFriendJoined',   { Text = 'Friend Joined',   Default = true,  Callback = function(v) enabledEvents['Friend Joined']   = v end })
-EventsTab:AddCheckbox('EventNewAccount',     { Text = 'New Account',     Default = false, Callback = function(v) enabledEvents['New Account']     = v end })
-EventsTab:AddDivider('<b>Performance Warnings</b>')
-EventsTab:AddCheckbox('EventFPSDrop',  { Text = 'FPS Drop Warning',  Default = false, Callback = function(v) enabledEvents['FPS Drop']  = v end })
-EventsTab:AddCheckbox('EventHighPing', { Text = 'High Ping Warning', Default = false, Callback = function(v) enabledEvents['High Ping'] = v end })
-EventsTab:AddDivider('<b>Settings</b>')
-EventsTab:AddSlider('FPSWarnThreshold',  { Text = 'FPS Warning Below',  Min = 10,  Max = 60,  Default = 25,  Rounding = 0, Compact = true, Suffix = ' fps' })
-EventsTab:AddSlider('PingWarnThreshold', { Text = 'Ping Warning Above', Min = 100, Max = 500, Default = 200, Rounding = 0, Compact = true, Suffix = ' ms' })
-
-SoundTab:AddDivider('<b>Sound Preset</b>')
-SoundTab:AddDropdown('NotifPresets', {
-    Text = 'Sound Presets',
-    Values = { 'Default','Windows XP','Bubble Pop','Hitmarker','Apple Pay','Obby Sound','CS:GO Kill','Mario Coin','Soft Chime','Elegant Bell','Warm Glow','Crystal Clear','Deep Bass','Smooth Jazz','Retro Wave','Notification Bell','Subtle Pop','Cinematic Boom','Sci-Fi Ping','Arcade Coin' },
-    Default = 'Default', Multi = false,
-})
-SoundTab:AddDivider('<b>Custom Sound</b>')
-local soundInput = SoundTab:AddInput('NotifySoundMP3', {
-    Text = 'Custom Sound ID', ClearTextOnFocus = false,
-    Placeholder = 'rbxassetid:// or paste ID', Default = '97643101798871',
-})
-SoundTab:AddSlider('NotifVolume', {
-    Text = 'Volume', Min = 0, Max = 10, Default = 1.2, Rounding = 1, Compact = true, Suffix = '/10',
-    Callback = function(Value) notificationVolume = Value / 10 end,
-})
-
-Options.NotifPresets:OnChanged(function(Value)
-    local presetMap = {
-        Default = '', ['Windows XP'] = 'rbxassetid://97972687450528',
-        ['Bubble Pop'] = 'rbxassetid://109359226723492', Hitmarker = 'rbxassetid://5952120301',
-        ['Apple Pay'] = 'rbxassetid://127022251074808', ['Obby Sound'] = 'rbxassetid://101580595290802',
-        ['CS:GO Kill'] = 'rbxassetid://7269900245', ['Mario Coin'] = 'rbxassetid://107089652181213',
-        ['Soft Chime'] = 'rbxassetid://130467592920597', ['Elegant Bell'] = 'rbxassetid://131390520971848',
-        ['Warm Glow'] = 'rbxassetid://127441833735276', ['Crystal Clear'] = 'rbxassetid://117409737658405',
-        ['Deep Bass'] = 'rbxassetid://128187340772806', ['Smooth Jazz'] = 'rbxassetid://136001454409424',
-        ['Retro Wave'] = 'rbxassetid://124018322190013', ['Notification Bell'] = 'rbxassetid://6042053626',
-        ['Subtle Pop'] = 'rbxassetid://6042053626', ['Cinematic Boom'] = 'rbxassetid://5152862972',
-        ['Sci-Fi Ping'] = 'rbxassetid://6042053626', ['Arcade Coin'] = 'rbxassetid://107089652181213',
     }
-    local soundId = presetMap[Value] or ''
-    soundInput:SetValue(soundId)
-    if currentPreviewSound then currentPreviewSound:Stop(); currentPreviewSound:Destroy(); currentPreviewSound = nil end
-    if soundId ~= '' then
-        task.spawn(function()
-            local sound = Instance.new('Sound')
-            sound.SoundId = soundId; sound.Volume = notificationVolume; sound.Parent = workspace
-            sound:Play(); currentPreviewSound = sound
-            task.delay(3, function()
-                if currentPreviewSound == sound then sound:Stop(); sound:Destroy(); currentPreviewSound = nil end
+
+    local dragging, dragStart, startPosition, dragInput
+    local inputService = game:GetService("UserInputService")
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging, dragStart, startPosition = true, input.Position, frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    inputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y)
+        end
+    end)
+
+    local frames, frameTimer = 0, tick()
+    local displayFPS, displayPing = 60, 0
+    local targetFPS, targetPing = 60, 0
+    local function easeOutQuad(t) return 1 - (1 - t) * (1 - t) end
+    local function smooth(cur, tgt)
+        local d = tgt - cur
+        if math.abs(d) < 0.5 then return tgt end
+        local s = d * (0.18 + easeOutQuad(math.min(1, math.abs(d) / 60)) * 0.35)
+        if math.abs(s) < 1 and math.abs(d) > 2 then s = d > 0 and 1 or -1 end
+        return cur + s
+    end
+
+    apexRunService.RenderStepped:Connect(function()
+        if not gui.Parent then return end
+        frames += 1
+        if tick() - frameTimer >= 1 then
+            targetFPS, frames, frameTimer = frames, 0, tick()
+        end
+        pcall(function()
+            targetPing = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
+    end)
+    apexRunService.Heartbeat:Connect(function()
+        if not gui.Parent then return end
+        displayFPS = smooth(displayFPS, targetFPS)
+        displayPing = smooth(displayPing, targetPing)
+        updateHudText(math.floor(displayFPS + 0.5), math.floor(displayPing + 0.5))
+    end)
+end)
+
+-- ============================================================
+-- BetterOrion Loader
+-- ============================================================
+local function loadUILibrary(url)
+    local ok, source = pcall(function() return game:HttpGet(url) end)
+    if not ok or type(source) ~= 'string' or #source == 0 then return nil end
+    local compiled, chunk = pcall(loadstring, source)
+    if not compiled or type(chunk) ~= 'function' then return nil end
+    local ran, library = pcall(chunk)
+    if not ran then return nil end
+    return library
+end
+
+local Library = loadUILibrary('https://raw.githubusercontent.com/ludicious-claw/BetterOrion/refs/heads/main/Library.lua')
+if not Library then
+    warn('[The Worst 2.5] BetterOrion failed to load; check HttpGet/loadstring.')
+    return
+end
+
+Library.Options = Library.Options or {}
+Library.Toggles = Library.Toggles or {}
+Library.Items   = Library.Items   or {}
+Library.Flags   = Library.Flags   or {}
+Library.Scheme  = Library.Scheme  or {}
+
+-- ============================================================
+-- Adapter
+-- ============================================================
+local _usedControlFlags = {}
+local function _flag(cfg)
+    local base = tostring(cfg.Flag or cfg.Name or ('tw_' .. tostring(math.random(100000, 999999))))
+    local flag, suffix = base, 2
+    while _usedControlFlags[flag] or Library.Options[flag]
+        or Library.Toggles[flag] or Library.Flags[flag] or Library.Items[flag] do
+        flag = base .. "_" .. suffix
+        suffix = suffix + 1
+    end
+    _usedControlFlags[flag] = true
+    return flag
+end
+
+local function _callback(cfg)
+    local cb = cfg and (cfg.Callback or cfg.Func)
+    if type(cb) ~= 'function' then return nil end
+    local name = tostring((cfg and (cfg.Name or cfg.Flag)) or 'unnamed')
+    return function(...)
+        local args = table.pack(...)
+        local ok, err = xpcall(function() cb(table.unpack(args, 1, args.n)) end, debug.traceback)
+        if not ok then warn('[TW 2.5 callback] ' .. name .. ' | ' .. tostring(err)) end
+    end
+end
+
+local function _toKeyCode(v)
+    if typeof(v) == 'EnumItem' then return v end
+    if type(v) == 'string' then
+        if v == 'None' or v == '' then return Enum.KeyCode.Unknown end
+        return Enum.KeyCode[v] or Enum.KeyCode.Unknown
+    end
+    return Enum.KeyCode.Unknown
+end
+
+local function _safeCreate(container, text, fn)
+    local ok, obj = pcall(fn)
+    if ok then return obj end
+    warn('[TW 2.5 UI] skipped: ' .. tostring(text) .. ' | ' .. tostring(obj))
+    return nil
+end
+
+local function _wrapBlock(section)
+    local out = {}
+    section = section or {}
+
+    function out:CreateToggle(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local cb = _callback(cfg)
+        local togCb = function(value, ...)
+            if type(SetToggleState) == 'function' then SetToggleState(flag, value == true) end
+            if cb then cb(value, ...) end
+        end
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddToggle({
+                Name = cfg.Name or flag, Default = cfg.Default == true,
+                Flag = flag, Callback = togCb,
+            })
+        end)
+        if obj then
+            Library.Toggles[flag] = obj
+            Library.Flags[flag]   = obj
+            Library.Items[flag]   = obj
+        end
+        return obj
+    end
+
+    function out:CreateSlider(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local cb = _callback(cfg)
+        local inc = 1
+        if cfg.Rounding and cfg.Rounding > 0 then inc = 1 / math.pow(10, cfg.Rounding) end
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddSlider({
+                Name = cfg.Name or flag,
+                Default = cfg.Default ~= nil and cfg.Default or (cfg.Min or 0),
+                Min = cfg.Min or 0, Max = cfg.Max or 100,
+                Increment = inc, ValueName = cfg.Suffix or '',
+                Flag = flag, Callback = cb,
+            })
+        end)
+        if obj then Library.Options[flag] = obj; Library.Items[flag] = obj end
+        return obj
+    end
+
+    function out:CreateDropdown(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local values = cfg.Items or cfg.Values or cfg.List or {'Select...'}
+        if type(values) ~= 'table' or #values == 0 then values = {'Select...'} end
+        local cb = _callback(cfg)
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddDropdown({
+                Name = cfg.Name or flag, Options = values,
+                Default = cfg.Default, Flag = flag, Callback = cb,
+            })
+        end)
+        if obj then Library.Options[flag] = obj; Library.Items[flag] = obj end
+        return obj
+    end
+
+    function out:CreateButton(cfg)
+        cfg = cfg or {}
+        local text = cfg.Name or cfg.Text or 'Button'
+        local cb = _callback(cfg) or function() end
+        return _safeCreate(section, text, function()
+            return section:AddButton({Name = text, Callback = cb})
         end)
     end
-end)
 
-function playNotifySound()
-    if notificationsMuted then return end
-    local soundId = soundInput.Value
-    if soundId and soundId ~= '' then
-        if not string.find(soundId, 'rbxassetid://') and not string.find(soundId, 'http') then
-            soundId = 'rbxassetid://' .. soundId
-        end
-        local sound = Instance.new('Sound')
-        sound.SoundId = soundId; sound.Volume = notificationVolume; sound.Parent = workspace
-        sound:Play(); game:GetService('Debris'):AddItem(sound, 3)
+    function out:CreateInput(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local cb = _callback(cfg)
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddTextbox({
+                Name = cfg.Name or flag, Default = cfg.Default or '',
+                TextDisappear = cfg.TextDisappear or false,
+                Flag = flag, Callback = cb,
+            })
+        end)
+        if obj then Library.Options[flag] = obj; Library.Items[flag] = obj end
+        return obj
     end
+
+    function out:CreateKeybind(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local keyCode = _toKeyCode(cfg.Default or 'None')
+        local cb = _callback(cfg)
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddBind({
+                Name = cfg.Name or flag, Default = keyCode,
+                Save = true, Flag = flag, Callback = cb,
+            })
+        end)
+        if obj then Library.Options[flag] = obj; Library.Items[flag] = obj end
+        return obj
+    end
+
+    function out:CreateColorPicker(cfg)
+        cfg = cfg or {}
+        local flag = _flag(cfg)
+        local cb = _callback(cfg)
+        if type(section.AddColorPicker) ~= 'function' then
+            return out:CreateLabel({Name = cfg.Name or flag})
+        end
+        local obj = _safeCreate(section, cfg.Name or flag, function()
+            return section:AddColorPicker({
+                Name = cfg.Name or flag, Default = cfg.Default or Color3.new(1,1,1),
+                Flag = flag, Callback = cb,
+            })
+        end)
+        if obj then Library.Options[flag] = obj; Library.Items[flag] = obj end
+        return obj
+    end
+
+    function out:CreateLabel(cfg)
+        local obj = {}
+        function obj:SetText() end
+        function obj:Set() end
+        return obj
+    end
+    function out:CreateImage(cfg) return out:CreateLabel(cfg) end
+    function out:CreateTabbox(cfg)
+        local tabs = {}
+        function tabs:CreateTab() return out end
+        return tabs
+    end
+    return out
 end
 
-function SendEventNotification(eventKey, title, description, icon, iconColor)
-    if not notifiesEnabled or not enabledEvents[eventKey] then return end
-    playNotifySound()
-    Library:Notify({
-        Title = title, Description = description, Icon = icon,
-        Time = notifDuration or 4, IconColor = iconColor or Color3.fromRGB(255, 255, 255),
+local _rawMakeWindow = Library.MakeWindow
+Library.CreateWindow = function(self, cfg)
+    cfg = cfg or {}
+    local window = _rawMakeWindow(self, {
+        Name = cfg.Title or 'The Worst 2.5',
+        SubNameSide = 'Center', ShowIcon = true, Icon = 'crown',
+        IntroEnabled = false,
+        Size = UDim2.new(0, 720, 0, 520),
+        MinSize = UDim2.new(0, 520, 0, 320),
+        MaxSize = UDim2.new(0, 9999, 0, 9999),
+        Theme = 'Default',
+        Transparency = cfg.Transparency or 0.15,
+        ElementsTransparency = 0.3,
+        SearchBar = true,
+        ToggleUIKey = cfg.ToggleKeybind or cfg.ToggleKey or Enum.KeyCode.RightShift,
     })
+
+    function window:CreateTab(name, enabled, icon)
+        local tab = self:MakeTab({
+            Name = name,
+            Icon = (type(icon) == 'string' and icon) or 'circle',
+        })
+        function tab:CreateBlock(blockCfg)
+            blockCfg = blockCfg or {}
+            local section = tab:AddSection({
+                Name = blockCfg.Name or 'Section',
+                Side = blockCfg.Side or 'Left',
+            })
+            return _wrapBlock(section)
+        end
+        return tab
+    end
+    function window:SetFooter() end
+    return window
 end
 
-Players.PlayerAdded:Connect(function(plr)
-    if not notifiesEnabled then return end
-    local displayName = plr.DisplayName or plr.Name
-    local formatted = displayName .. ' (@' .. plr.Name .. ')'
-    task.wait(0.5)
-    if playerLeaveTracker[plr.UserId] then
-        SendEventNotification('Player Rejoined', 'Rejoined', formatted .. ' has rejoined', 'rbxassetid://116176143011396', Color3.fromRGB(56, 189, 248))
-        playerLeaveTracker[plr.UserId] = nil; return
-    end
-    local ok, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(plr.UserId) end)
-    if ok and isFriend then
-        SendEventNotification('Friend Joined', 'Friend Joined', formatted .. ' is a friend', 'rbxassetid://116176143011396', Color3.fromRGB(250, 204, 21))
-    end
-    if plr.AccountAge < 30 then
-        SendEventNotification('New Account', 'New Account', formatted .. ' is ' .. plr.AccountAge .. ' days old', 'rbxassetid://116176143011396', Color3.fromRGB(244, 114, 182))
-    end
-    SendEventNotification('Player Joined', 'Joined', formatted .. ' has joined', 'rbxassetid://116176143011396', Color3.fromRGB(52, 211, 153))
-end)
-Players.PlayerRemoving:Connect(function(plr)
-    if not notifiesEnabled then return end
-    local displayName = plr.DisplayName or plr.Name
-    local formatted = displayName .. ' (@' .. plr.Name .. ')'
-    playerLeaveTracker[plr.UserId] = true
-    SendEventNotification('Player Left', 'Left', formatted .. ' has left', 'rbxassetid://116176143011396', Color3.fromRGB(68, 68, 68))
-end)
+-- ============================================================
+-- Replicated services
+-- ============================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+local TweenService      = game:GetService("TweenService")
+local Workspace         = game:GetService("Workspace")
+local Stats             = game:GetService("Stats")
 
 -- ============================================================
--- [11] Cursor / Interface / Extras (The Worst original)
+-- Toggle state helpers
 -- ============================================================
-local CursorTab    = DisplayTabbox:AddTab('<b>Cursor</b>', 'mouse-pointer')
-local InterfaceTab = DisplayTabbox:AddTab('<b>Interface</b>', 'monitor')
-local ExtrasTab    = DisplayTabbox:AddTab('<b>Extras</b>', 'sparkles')
+local ToggleStates = {}
+function SetToggleState(flag, value) ToggleStates[flag] = value end
+function GetToggleState(flag) return ToggleStates[flag] or false end
 
-do
-    local CursorEnabled = false
-    local CursorIcon = ''
-    local CursorSize = 20
-    local CursorColor = Color3.fromRGB(255, 255, 255)
-    local CursorRainbow = false
-    local CursorRainbowConn = nil
-    local CursorRainbowSpeed = 1
+local Options = Library.Options or {}
+local Toggles = Library.Toggles or {}
 
-    local function applyCursor()
-        if CursorEnabled then
-            Library.ShowCustomCursor = true
-            Library.Cursor:ChangeIcon(CursorIcon ~= '' and CursorIcon or 'crosshair')
-            Library.Cursor:ChangeIconColor(CursorColor)
-            Library.Cursor:ChangeIconSize(UDim2.fromOffset(CursorSize, CursorSize))
-            Library.Cursor:ChangeCrossColor(CursorColor)
-        else
-            Library.ShowCustomCursor = false
-            Library.Cursor:ResetCursor()
+-- ============================================================
+-- notify
+-- ============================================================
+local function playNotificationSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = _G.TW_NotificationSoundId or "rbxassetid://129485210015224"
+    sound.Volume = 1
+    sound.Parent = game:GetService("SoundService")
+    sound:Play()
+    sound.Ended:Connect(function() sound:Destroy() end)
+end
+
+local function notify(title, content, duration)
+    local payload
+    if type(title) == "table" then
+        payload = {}
+        for k, v in pairs(title) do payload[k] = v end
+        payload.Name    = payload.Name or payload.Title or "Notification"
+        payload.Content = payload.Content or payload.Description or ""
+        payload.Time    = payload.Time or payload.Duration or content or duration or 5
+        payload.Image   = payload.Image or "bell"
+    else
+        payload = {
+            Name = title or "Notification",
+            Content = content or "",
+            Time = duration or 5,
+            Image = "bell",
+        }
+    end
+    local ok, err = pcall(function()
+        if type(Library.MakeNotification) == "function" then
+            Library:MakeNotification(payload)
         end
-    end
-    local function stopCursorRainbow()
-        if CursorRainbowConn then CursorRainbowConn:Disconnect(); CursorRainbowConn = nil end
+    end)
+    if ok then pcall(playNotificationSound)
+    else warn("[TW 2.5 notify] " .. tostring(err)) end
+end
+
+-- ============================================================
+-- Create main window
+-- ============================================================
+local Window = Library:CreateWindow({
+    Title     = "The Worst 2.5",
+    Footer    = "The Worst 2.5",
+    ToggleKey = Enum.KeyCode.RightShift,
+    Transparency = 0.15,
+    Icon      = "crown",
+})
+
+-- ============================================================
+-- Tabs
+-- ============================================================
+local Tabs = {
+    Dashboard = Window:CreateTab("Dashboard", true, "home"),
+    Main      = Window:CreateTab("Main",      true, "hand-metal"),
+    Defense   = Window:CreateTab("Antis",     true, "shield"),
+    Target    = Window:CreateTab("Target",    true, "swords"),
+    Grab      = Window:CreateTab("Grab",      true, "hand"),
+    Visuals   = Window:CreateTab("Visuals",   true, "eye"),
+    Server    = Window:CreateTab("Server",    true, "hard-drive"),
+    Teleport  = Window:CreateTab("Teleport",  true, "map"),
+    Misc      = Window:CreateTab("Misc",      true, "settings"),
+    Keybinds  = Window:CreateTab("Keybinds",  true, "keyboard"),
+    Settings  = Window:CreateTab("Settings",  true, "wrench"),
+}
+
+-- ============================================================
+-- Dashboard
+-- ============================================================
+;(function()
+    local function greeting()
+        local h = tonumber(os.date('%H'))
+        if h < 12 then return 'Good Morning'
+        elseif h < 17 then return 'Good Afternoon'
+        elseif h < 21 then return 'Good Evening'
+        else return 'Good Night' end
     end
 
-    CursorTab:AddDivider('<b>Cursor Appearance</b>')
-    local CustomCursorToggle = CursorTab:AddCheckbox('CustomCursorToggle', {
-        Text = 'Custom Cursor', Default = false,
-        Callback = function(Value) CursorEnabled = Value; applyCursor() end,
+    local Profile = Tabs.Dashboard:CreateBlock({Name = "Profile", Side = "Left"})
+    Profile:CreateLabel({Name = string.format("%s, <b>%s</b>", greeting(), LocalPlayer.DisplayName)})
+    Profile:CreateLabel({Name = "Welcome to <font color='#FF3B3B'><b>The Worst 2.5</b></font>"})
+
+    local Stats = Tabs.Dashboard:CreateBlock({Name = "Statistics", Side = "Right"})
+    Stats:CreateLabel({Name = "<font color='#94A3B8'>Version</font>  <b>2.5</b>"})
+    Stats:CreateLabel({Name = string.format("<font color='#94A3B8'>Place ID</font>  <b>%d</b>", game.PlaceId)})
+    local playersLabel = Stats:CreateLabel({Name = ''})
+    task.spawn(function()
+        while task.wait(1) do
+            if playersLabel and type(playersLabel.SetText) == "function" then
+                playersLabel:SetText(string.format("<font color='#94A3B8'>Players</font>  <b>%d / %d</b>",
+                    #Players:GetPlayers(), Players.MaxPlayers))
+            end
+        end
+    end)
+
+    local ScriptActions = Tabs.Dashboard:CreateBlock({Name = "Script", Side = "Left"})
+    ScriptActions:CreateButton({
+        Name = "Unload",
+        Callback = function()
+            for _, t in pairs(Toggles) do
+                if t and type(t.SetValue) == "function" then
+                    pcall(function() t:SetValue(false) end)
+                end
+            end
+            pcall(function()
+                local hud = _G.TWPerformanceHUD
+                local f = hud and hud.Frame
+                local sg = f and f:FindFirstAncestorOfClass("ScreenGui")
+                if sg then sg:Destroy() end
+                _G.TWPerformanceHUD = nil
+            end)
+            pcall(function()
+                if type(Library.Destroy) == "function" then Library:Destroy() end
+            end)
+        end,
     })
-    CustomCursorToggle:AddColorPicker('CursorColorPicker', {
-        Text = 'Cursor Color', Default = Color3.fromRGB(255, 255, 255),
-        Callback = function(Value) CursorColor = Value; if CursorEnabled and not CursorRainbow then applyCursor() end end,
+    ScriptActions:CreateButton({
+        Name = "Restart Server",
+        Callback = function()
+            pcall(function()
+                game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+            end)
+        end,
     })
-    CursorTab:AddInput('CursorImageLink', {
-        Text = 'Image Link/ID', ClearTextOnFocus = false, Placeholder = 'rbxassetid:// or lucide icon', Default = '',
-        Callback = function(Value) CursorIcon = Value; if CursorEnabled then applyCursor() end end,
+end)()
+
+-- ============================================================
+-- Main tab: Movement + Fun
+-- ============================================================
+local MainL = Tabs.Main:CreateBlock({Name = "Movement", Side = "Left"})
+local MainR = Tabs.Main:CreateBlock({Name = "Fun", Side = "Right"})
+
+;(function()
+    -- ===== Fly =====
+    local flyEnabled, flySpeed = false, 200
+    local bv, bg, flyConn
+
+    local function cleanupFly()
+        if flyConn then flyConn:Disconnect() flyConn = nil end
+        if bv then bv:Destroy() bv = nil end
+        if bg then bg:Destroy() bg = nil end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
+
+    local function startFly()
+        cleanupFly()
+        flyConn = RunService.Heartbeat:Connect(function()
+            if not flyEnabled then return end
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hrp or not hum then return end
+            if not bv or bv.Parent ~= hrp then
+                if bv then bv:Destroy() end
+                if bg then bg:Destroy() end
+                bv = Instance.new("BodyVelocity")
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.P = 10000
+                bv.Parent = hrp
+                bg = Instance.new("BodyGyro")
+                bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                bg.P = 10000
+                bg.Parent = hrp
+            end
+            hum.PlatformStand = true
+            local cam = Workspace.CurrentCamera
+            local dir = Vector3.zero
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.new(0,1,0) end
+            if dir.Magnitude > 0 then dir = dir.Unit end
+            bv.Velocity = dir * flySpeed
+            bg.CFrame = cam.CFrame
+        end)
+    end
+
+    MainL:CreateToggle({
+        Name = "Fly",
+        Flag = "FlyToggle",
+        Default = false,
+        Callback = function(v)
+            flyEnabled = v
+            if v then startFly() else cleanupFly() end
+        end,
     })
-    CursorTab:AddSlider('CursorSizeSlider', {
-        Text = 'Cursor Size', Default = 20, Min = 8, Max = 128, Rounding = 0, Compact = true, Suffix = ' px',
-        Callback = function(Value) CursorSize = Value; if CursorEnabled then applyCursor() end end,
+    MainL:CreateSlider({
+        Name = "Fly Speed",
+        Flag = "FlySpeed",
+        Min = 50, Max = 2000, Default = 200,
+        Callback = function(v) flySpeed = v end,
     })
-    CursorTab:AddDivider('<b>Rainbow Mode</b>')
-    CursorTab:AddCheckbox('CursorRainbowToggle', {
-        Text = 'Rainbow Cursor', Default = false,
-        Callback = function(Value)
-            CursorRainbow = Value; stopCursorRainbow()
-            if Value and CursorEnabled then
-                CursorRainbowConn = RunService.Heartbeat:Connect(function()
-                    local t = tick() * CursorRainbowSpeed
-                    local color = Color3.fromRGB(math.sin(t) * 127 + 128, math.sin(t + 2) * 127 + 128, math.sin(t + 4) * 127 + 128)
-                    if CursorEnabled then
-                        Library.Cursor:ChangeIconColor(color)
-                        Library.Cursor:ChangeCrossColor(color)
+
+    -- ===== WalkSpeed =====
+    local speedValue = 16
+    MainL:CreateSlider({
+        Name = "Walk Speed",
+        Flag = "WalkSpeed",
+        Min = 16, Max = 300, Default = 16,
+        Callback = function(v)
+            speedValue = v
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = v end
+        end,
+    })
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = speedValue end
+    end)
+
+    -- ===== Noclip =====
+    local noclipConn
+    MainL:CreateToggle({
+        Name = "Noclip",
+        Flag = "NoclipToggle",
+        Default = false,
+        Callback = function(v)
+            if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+            if v then
+                noclipConn = RunService.Stepped:Connect(function()
+                    local char = LocalPlayer.Character
+                    if char then
+                        for _, p in ipairs(char:GetDescendants()) do
+                            if p:IsA("BasePart") then p.CanCollide = false end
+                        end
                     end
                 end)
-            elseif CursorEnabled then applyCursor() end
+            end
         end,
     })
-    CursorTab:AddSlider('CursorRainbowSpeed', {
-        Text = 'Rainbow Speed', Default = 1, Min = 0.1, Max = 5, Rounding = 1, Compact = true, Suffix = 'x',
-        Callback = function(Value) CursorRainbowSpeed = Value end,
+
+    -- ===== Infinite Jump =====
+    local infJump = false
+    MainL:CreateToggle({
+        Name = "Infinite Jump",
+        Flag = "InfJump",
+        Default = false,
+        Callback = function(v) infJump = v end,
     })
-end
-
-InterfaceTab:AddDivider('<b>Layout</b>')
-InterfaceTab:AddCheckbox('KeybindMenuOpen', {
-    Default = Library.KeybindFrame.Visible, Text = 'Open Keybind Menu',
-    Callback = function(value) Library.KeybindFrame.Visible = value end,
-})
-InterfaceTab:AddDropdown('DPIDropdown', {
-    Values = { '50%','75%','100%','125%','150%','175%','200%' }, Default = '100%', Text = 'DPI Scale',
-    Callback = function(Value)
-        Value = Value:gsub('%%', '')
-        Library:SetDPIScale(tonumber(Value))
-    end,
-})
-InterfaceTab:AddDivider('<b>Window</b>')
-InterfaceTab:AddSlider('UICornerSlider', {
-    Text = 'Corner Radius', Default = Library.CornerRadius, Min = 0, Max = 20, Rounding = 0, Compact = true,
-    Callback = function(value) Window:SetCornerRadius(value) end,
-})
-InterfaceTab:AddLabel('Menu Keybind'):AddKeyPicker('MenuKeybind', { Default = 'RightShift', NoUI = true })
-
-ExtrasTab:AddDivider('<b>Automation</b>')
-ExtrasTab:AddCheckbox('AntiAFKToggle', {
-    Text = 'Anti AFK', Default = false,
-    Callback = function(Value)
-        if Value then
-            LocalPlayer.Idled:Connect(function()
-                pcall(function()
-                    game:GetService('VirtualUser'):CaptureController()
-                    game:GetService('VirtualUser'):ClickButton2(Vector2.new())
-                end)
-            end)
-        end
-    end,
-})
-
--- ============================================================
--- [12] Background group
--- ============================================================
-local BackgroundGroup = Tabs['UI Settings']:AddLeftGroupbox('<b>Background</b>', 'archive', "<b>backgrounds (only id works)</b>")
-
-local displayName = (LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name)) or "Player"
-local WatermarkSettings = { ShowFPS = true, ShowPing = true, ShowTime = true, Scale = 1 }
-
-local watermark = Library:AddDraggableLabel("<b>" .. displayName .. "</b> | <b>The Worst × Resonance</b> | 0 <b>FPS</b> | 0 <b>ms</b> | 00:00", "rbxassetid://92219509537334")
-
-local function UpdateWatermark()
-    local parts = { "<b>" .. displayName .. "</b>", "<b>The Worst × Resonance</b>" }
-    if WatermarkSettings.ShowFPS then table.insert(parts, tostring(WatermarkSettings.LastFPS or 0) .. " <b>FPS</b>") end
-    if WatermarkSettings.ShowPing then table.insert(parts, tostring(WatermarkSettings.LastPing or 0) .. " <b>ms</b>") end
-    if WatermarkSettings.ShowTime then table.insert(parts, os.date("%H:%M")) end
-    pcall(function() watermark:SetText(table.concat(parts, " | ")) end)
-end
-
-task.spawn(function()
-    local frames, lastT = 0, tick()
-    RunService.RenderStepped:Connect(function() frames += 1 end)
-    while task.wait(0.5) do
-        local now = tick()
-        local fps = math.floor(frames / (now - lastT)); frames, lastT = 0, now
-        local ok, ping = pcall(function() return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-        WatermarkSettings.LastFPS = fps
-        WatermarkSettings.LastPing = ok and ping or 0
-        UpdateWatermark()
-    end
-end)
-
-WatermarkGroup:AddCheckbox("WMFPS",  { Text = "Show FPS",  Default = true, Callback = function(v) WatermarkSettings.ShowFPS = v;  UpdateWatermark() end })
-WatermarkGroup:AddCheckbox("WMPing", { Text = "Show Ping", Default = true, Callback = function(v) WatermarkSettings.ShowPing = v; UpdateWatermark() end })
-WatermarkGroup:AddCheckbox("WMTime", { Text = "Show Time", Default = true, Callback = function(v) WatermarkSettings.ShowTime = v; UpdateWatermark() end })
-
-local bgData = { Enabled = true, Image = "0", Last = nil, Transparency = 0.15 }
-local bgToken = 0
-local function formatImage(id)
-    id = tostring(id or ""):gsub("%s+", "")
-    if id == "" then return "rbxassetid://0" end
-    if id:find("rbxassetid://") then return id end
-    return "rbxassetid://" .. id
-end
-local function applyBackground()
-    bgToken += 1
-    local current = bgToken
-    task.delay(0.05, function()
-        if current ~= bgToken then return end
-        local image = bgData.Enabled and formatImage(bgData.Image) or "rbxassetid://0"
-        if bgData.Last == image then return end
-        bgData.Last = image
-        pcall(function()
-            Window:SetBackgroundImage(image)
-            Window:SetBackgroundTransparency(bgData.Transparency)
-        end)
+    UserInputService.JumpRequest:Connect(function()
+        if not infJump then return end
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end)
-end
 
-BackgroundGroup:AddCheckbox("EnableBackground", {
-    Text = "Enable Background", Default = true,
-    Callback = function(v) bgData.Enabled = v; applyBackground() end,
-})
-BackgroundGroup:AddInput("BackgroundAsset", {
-    Text = "Asset ID", Default = "0",
-    Callback = function(v) bgData.Image = tostring(v); applyBackground() end,
-})
-BackgroundGroup:AddButton({
-    Text = "Clear Background",
-    Func = function() bgData.Image = "0"; applyBackground() end,
-})
-applyBackground()
+    -- ===== Spin Character =====
+    local spinConn, spinSpeed = nil, 5
+    MainL:CreateToggle({
+        Name = "Spin Character",
+        Flag = "SpinChar",
+        Default = false,
+        Callback = function(v)
+            if spinConn then spinConn:Disconnect() spinConn = nil end
+            if v then
+                spinConn = RunService.Heartbeat:Connect(function()
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+                    end
+                end)
+            end
+        end,
+    })
+    MainL:CreateSlider({
+        Name = "Spin Speed",
+        Flag = "SpinSpeed",
+        Min = 1, Max = 50, Default = 5,
+        Callback = function(v) spinSpeed = v end,
+    })
 
--- ============================================================
--- [13] Resonance Systems — MERGED INTO THE WORST WINDOW
--- ============================================================
--- Since Resonance Main creates its own window and internal tables,
--- we load the entire Resonance main source but strip out:
---   * Its own CreateWindow
---   * Its Keybinds / Misc / Auto-Clicker tab creation
--- and hook its systems to The Worst's tab objects.
---
--- The full Resonance source (Main module) below is the version the
--- user supplied. Only these edits were applied:
---   1. `v19 = lib:CreateWindow({...})` — replaced with `v19 = _G.__WorstWindow`
---   2. Removed tabs: `Keybinds`, `Misc`, `AutoClicker`
---   3. Removed their AddTab lines from `tbl15` table
---   4. `Window:AddTab` calls for those tabs deleted
---
--- Everything else (tbl7/tbl8/tbl9/tbl10/tbl12/tbl13/tbl14, all the
--- system functions like Grab/Kill/Void/Gucci/AntiKick/etc.) remains
--- untouched so all the systems work exactly as in Resonance.
-
-local ResonanceMainSource = [==[
--- ============================================================
--- [Resonance Main — systems only]
--- The full Resonance Main source goes here verbatim, with the
--- modifications listed above. Because the source is ~4000 lines,
--- we reference it via the user's uploaded file at runtime.
--- ============================================================
-]==]
-
--- Since we cannot paste 4,000+ lines inline, load Resonance from the
--- user's source file (which they already have) OR from GitHub:
-local RESONANCE_URL = "https://raw.githubusercontent.com/ScriptHubFTAP/Resonance/main/v2.9.lua"
-
-local resonanceSourceOK, resonanceSource = pcall(function()
-    -- Try loading from the local source table (if provided by executor)
-    local sources = _G.ResonanceSources
-    if sources and sources.Main then
-        return sources.Main
-    end
-    -- Fall back to remote
-    return game:HttpGet(RESONANCE_URL, true)
-end)
-
-if resonanceSourceOK and type(resonanceSource) == "string" and #resonanceSource > 1000 then
-    -- Patch Resonance Main source in-memory so it:
-    --   1. Uses The Worst's window instead of creating its own
-    --   2. Skips Keybinds, Misc, Auto-Clicker tabs
-    local patched = resonanceSource
-
-    -- (a) Redirect window creation
-    patched = patched:gsub(
-        "v19 = lib:CreateWindow%(%b{}.+%%b{}%b{}%b{}%b{}%b{}%s*%)",
-        "v19 = _G.__WorstWindow"
-    )
-
-    -- (b) Remove Keybinds/Misc/AutoClicker tab creation lines
-    patched = patched:gsub("Keybinds = v19:AddTab[^\n]+\n", "")
-    patched = patched:gsub("Misc%s*=%s*v19:AddTab[^\n]+\n", "")
-    patched = patched:gsub("AutoClicker%s*=%s*v19:AddTab[^\n]+\n", "")
-
-    -- (c) Expose the window reference for the redirected creation call
-    _G.__WorstWindow = Window
-
-    -- (d) Expose Resonance library/tables for external access
-    local env = getgenv and getgenv() or _G
-    env.ResonanceRuntime = {}
-
-    local chunk, err = loadstring(patched, "@Resonance/Main")
-    if chunk then
-        local ok, runErr = pcall(chunk)
-        if not ok then
-            warn("[Resonance] Runtime error:", runErr)
-        end
-    else
-        warn("[Resonance] Loadstring error:", err)
-    end
-else
-    warn("[Resonance] Main source unavailable — using fallback stubs")
-
-    -- Fallback: register placeholder toggles so UI doesn't error
-    local stubGroups = {
-        { Tab = Tabs.Combat,        Name = "Combat",        Icon = "swords" },
-        { Tab = Tabs.Invincibility, Name = "Invincibility", Icon = "shield-check" },
-        { Tab = Tabs.BlobmanReso,   Name = "Blobman",       Icon = "venetian-mask" },
-        { Tab = Tabs.ToysReso,      Name = "Toys",          Icon = "shapes" },
+    -- ===== Animation Player (Fun) =====
+    local Animations = {
+        ["Crazy"]     = "rbxassetid://248263260",
+        ["Dab"]       = "rbxassetid://183412246",
+        ["Robot"]     = "rbxassetid://30196114",
+        ["Thriller"]  = "rbxassetid://27789359",
+        ["Moon Dance"]= "rbxassetid://45834924",
+        ["Faint"]     = "rbxassetid://181526230",
+        ["Levitate"]  = "rbxassetid://313762630",
     }
-    for _, g in ipairs(stubGroups) do
-        local box = g.Tab:AddLeftGroupbox("<b>" .. g.Name .. "</b>", g.Icon)
-        box:AddLabel("Resonance systems unavailable. Provide source via _G.ResonanceSources.Main")
+    local animEnabled, currentTrack, selectedAnim, animSpeed = false, nil, "Crazy", 1
+
+    local function playAnim()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+        if currentTrack then currentTrack:Stop() end
+        local anim = Instance.new("Animation")
+        anim.AnimationId = Animations[selectedAnim]
+        currentTrack = animator:LoadAnimation(anim)
+        currentTrack.Priority = Enum.AnimationPriority.Action
+        currentTrack.Looped = true
+        currentTrack:Play()
+        currentTrack:AdjustSpeed(animSpeed)
     end
+
+    MainR:CreateToggle({
+        Name = "Play Animation",
+        Flag = "AnimToggle",
+        Default = false,
+        Callback = function(v)
+            animEnabled = v
+            if v then playAnim()
+            else
+                if currentTrack then currentTrack:Stop() currentTrack = nil end
+            end
+        end,
+    })
+    MainR:CreateDropdown({
+        Name = "Animation",
+        Flag = "AnimSelect",
+        Items = {"Crazy","Dab","Robot","Thriller","Moon Dance","Faint","Levitate"},
+        Default = "Crazy",
+        Callback = function(v)
+            selectedAnim = v
+            if animEnabled then playAnim() end
+        end,
+    })
+    MainR:CreateSlider({
+        Name = "Animation Speed",
+        Flag = "AnimSpeed",
+        Min = 0.1, Max = 10, Default = 1,
+        Callback = function(v)
+            animSpeed = v
+            if currentTrack then currentTrack:AdjustSpeed(v) end
+        end,
+    })
+end)()
+
+-- ============================================================
+-- Defense
+-- ============================================================
+local DefenseL = Tabs.Defense:CreateBlock({Name = "Defense", Side = "Left"})
+local DefenseR = Tabs.Defense:CreateBlock({Name = "Extra", Side = "Right"})
+
+;(function()
+    -- Anti Void
+    DefenseL:CreateToggle({
+        Name = "Anti Void",
+        Flag = "AntiVoid",
+        Default = false,
+        Callback = function(v)
+            if v then Workspace.FallenPartsDestroyHeight = 0/0
+            else Workspace.FallenPartsDestroyHeight = -100 end
+        end,
+    })
+
+    -- Auto Reset on Flying
+    DefenseL:CreateToggle({
+        Name = "Auto Reset (Anti Ban)",
+        Flag = "AutoReset",
+        Default = false,
+        Callback = function(v)
+            if _G.AutoResetConn then _G.AutoResetConn:Disconnect() _G.AutoResetConn = nil end
+            if v then
+                local ev = ReplicatedStorage:FindFirstChild("GameCorrectionEvents")
+                local remote = ev and ev:FindFirstChild("GameCorrectionsNotify")
+                if remote then
+                    _G.AutoResetConn = remote.OnClientEvent:Connect(function(r)
+                        if r == "Flying" then
+                            local char = LocalPlayer.Character
+                            local hum = char and char:FindFirstChildOfClass("Humanoid")
+                            if hum then
+                                notify({Title = "Auto Reset", Content = "Prevent Ban!", Duration = 4})
+                                hum.Health = 0
+                            end
+                        end
+                    end)
+                end
+            end
+        end,
+    })
+
+    -- Anti Grab (basic seatless)
+    local agConn
+    DefenseL:CreateToggle({
+        Name = "Anti Grab",
+        Flag = "AntiGrab",
+        Default = false,
+        Callback = function(v)
+            if agConn then agConn:Disconnect() agConn = nil end
+            if v then
+                agConn = RunService.Heartbeat:Connect(function()
+                    local char = LocalPlayer.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if not hum then return end
+                    if hum.Sit then
+                        if not (hum.SeatPart and hum.SeatPart.Parent
+                            and hum.SeatPart.Parent.Name == "CreatureBlobman") then
+                            hum.Sit = false
+                        end
+                    end
+                end)
+            end
+        end,
+    })
+
+    -- Anti Ragdoll (spam escape)
+    DefenseR:CreateToggle({
+        Name = "Anti Ragdoll",
+        Flag = "AntiRagdoll",
+        Default = false,
+        Callback = function(v)
+            if _G.AntiRagConn then _G.AntiRagConn:Disconnect() _G.AntiRagConn = nil end
+            if v then
+                _G.AntiRagConn = RunService.Heartbeat:Connect(function()
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local ev = ReplicatedStorage:FindFirstChild("CharacterEvents")
+                        local remote = ev and ev:FindFirstChild("RagdollRemote")
+                        if remote then pcall(function() remote:FireServer(hrp, 0) end) end
+                    end
+                end)
+            end
+        end,
+    })
+
+    -- Anti Burn
+    DefenseR:CreateToggle({
+        Name = "Anti Burn",
+        Flag = "AntiBurn",
+        Default = false,
+        Callback = function(v)
+            if _G.AntiBurnConn then _G.AntiBurnConn:Disconnect() _G.AntiBurnConn = nil end
+            if v then
+                local function hook(char)
+                    local hum = char:WaitForChild("Humanoid", 5)
+                    if hum and hum:FindFirstChild("FireDebounce") then
+                        _G.AntiBurnConn = hum.FireDebounce.Changed:Connect(function()
+                            if hum.FireDebounce.Value then hum.FireDebounce.Value = false end
+                        end)
+                    end
+                end
+                if LocalPlayer.Character then hook(LocalPlayer.Character) end
+                LocalPlayer.CharacterAdded:Connect(hook)
+            end
+        end,
+    })
+end)()
+
+-- ============================================================
+-- Target (player dropdown + kick basic)
+-- ============================================================
+local TargetL = Tabs.Target:CreateBlock({Name = "Target", Side = "Left"})
+local TargetR = Tabs.Target:CreateBlock({Name = "Actions", Side = "Right"})
+
+local selectedTarget = nil
+local function getPlayerList()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(list, p.DisplayName .. " (@" .. p.Name .. ")")
+        end
+    end
+    return list
 end
 
--- ============================================================
--- [14] Save / Theme
--- ============================================================
-Library.ToggleKeybind = Options.MenuKeybind
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-ThemeManager:SetFolder("The Worst x Resonance")
-SaveManager:SetFolder("The Worst x Resonance/Configs")
-SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
+local targetDropdown = TargetL:CreateDropdown({
+    Name = "Select Target",
+    Flag = "TargetPlayer",
+    Items = getPlayerList(),
+    Default = nil,
+    Callback = function(v)
+        if type(v) ~= 'string' then return end
+        local uname = v:match("@([%w_]+)") or v
+        selectedTarget = Players:FindFirstChild(uname)
+    end,
+})
+TargetL:CreateButton({
+    Name = "Refresh List",
+    Callback = function()
+        if targetDropdown and targetDropdown.SetValues then
+            pcall(function() targetDropdown:SetValues(getPlayerList()) end)
+        end
+    end,
+})
 
-Window:SetCornerRadius(20)
-Library.ShowCustomCursor = false
+TargetR:CreateButton({
+    Name = "Kill Selected",
+    Callback = function()
+        if not selectedTarget or not selectedTarget.Character then return end
+        local hum = selectedTarget.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end,
+})
+TargetR:CreateButton({
+    Name = "Bring Selected",
+    Callback = function()
+        if not selectedTarget or not selectedTarget.Character then return end
+        local char = LocalPlayer.Character
+        local myHRP = char and char:FindFirstChild("HumanoidRootPart")
+        local tHRP = selectedTarget.Character:FindFirstChild("HumanoidRootPart")
+        if myHRP and tHRP then tHRP.CFrame = myHRP.CFrame + Vector3.new(0, 0, -3) end
+    end,
+})
 
-print("[Merged] The Worst 2.5 × Resonance loaded")
-Library:Notify({
-    Title = "<b>The Worst × Resonance</b>",
-    Description = "Merged build loaded successfully",
-    Icon = "rbxassetid://92219509537334",
+-- ============================================================
+-- Grab
+-- ============================================================
+local GrabL = Tabs.Grab:CreateBlock({Name = "Grab", Side = "Left"})
+local GrabR = Tabs.Grab:CreateBlock({Name = "Grab Types", Side = "Right"})
+
+GrabL:CreateSlider({
+    Name = "Throw Strength",
+    Flag = "ThrowStrength",
+    Min = 1, Max = 20000, Default = 750,
+    Callback = function(v) _G.strength = v end,
+})
+
+GrabR:CreateButton({
+    Name = "Grab Player (Select first in Target)",
+    Callback = function()
+        if not selectedTarget or not selectedTarget.Character then return end
+        local tHRP = selectedTarget.Character:FindFirstChild("HumanoidRootPart")
+        if not tHRP then return end
+        local ge = ReplicatedStorage:FindFirstChild("GrabEvents")
+        local setNet = ge and ge:FindFirstChild("SetNetworkOwner")
+        if setNet then pcall(function() setNet:FireServer(tHRP, tHRP.CFrame) end) end
+    end,
+})
+
+-- ============================================================
+-- Visuals
+-- ============================================================
+local VisL = Tabs.Visuals:CreateBlock({Name = "Player", Side = "Left"})
+local VisR = Tabs.Visuals:CreateBlock({Name = "World", Side = "Right"})
+
+VisL:CreateToggle({
+    Name = "Player ESP",
+    Flag = "PlayerESP",
+    Default = false,
+    Callback = function(v)
+        if _G.ESPConn then _G.ESPConn:Disconnect() _G.ESPConn = nil end
+        if v then
+            local function addESP(plr)
+                if plr == LocalPlayer then return end
+                local char = plr.Character
+                if not char then return end
+                if char:FindFirstChild("TW_ESP") then return end
+                local h = Instance.new("Highlight")
+                h.Name = "TW_ESP"
+                h.Adornee = char
+                h.FillColor = Color3.fromRGB(0, 170, 255)
+                h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                h.FillTransparency = 0.4
+                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                h.Parent = char
+            end
+            for _, p in ipairs(Players:GetPlayers()) do addESP(p) end
+            _G.ESPConn = Players.PlayerAdded:Connect(function(p)
+                p.CharacterAdded:Connect(function() task.wait(0.5) addESP(p) end)
+            end)
+        else
+            for _, p in ipairs(Players:GetPlayers()) do
+                local char = p.Character
+                if char then
+                    local e = char:FindFirstChild("TW_ESP")
+                    if e then e:Destroy() end
+                end
+            end
+        end
+    end,
+})
+
+VisR:CreateToggle({
+    Name = "Fullbright",
+    Flag = "Fullbright",
+    Default = false,
+    Callback = function(v)
+        local L = game:GetService("Lighting")
+        if v then
+            L.Brightness = 3
+            L.ClockTime = 14
+            L.GlobalShadows = false
+            L.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            L.Ambient = Color3.fromRGB(255, 255, 255)
+        else
+            L.Brightness = 2
+            L.GlobalShadows = true
+            L.OutdoorAmbient = Color3.fromRGB(70, 70, 70)
+            L.Ambient = Color3.fromRGB(70, 70, 70)
+        end
+    end,
+})
+
+VisR:CreateSlider({
+    Name = "Field of View",
+    Flag = "FOV",
+    Min = 40, Max = 120, Default = 70,
+    Callback = function(v)
+        local cam = Workspace.CurrentCamera
+        if cam then cam.FieldOfView = v end
+    end,
+})
+
+-- ============================================================
+-- Server
+-- ============================================================
+local ServerL = Tabs.Server:CreateBlock({Name = "Server", Side = "Left"})
+ServerL:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        pcall(function()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        end)
+    end,
+})
+ServerL:CreateButton({
+    Name = "Server Hop",
+    Callback = function()
+        pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+            local res = game:HttpGet(url)
+            local data = game:GetService("HttpService"):JSONDecode(res)
+            for _, s in ipairs(data.data) do
+                if s.id ~= game.JobId then
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
+                    return
+                end
+            end
+        end)
+    end,
+})
+
+-- ============================================================
+-- Teleport
+-- ============================================================
+local TPL = Tabs.Teleport:CreateBlock({Name = "Locations", Side = "Left"})
+local Locations = {
+    ["Spawn"]        = Vector3.new(0, -7, 0),
+    ["Green House"]  = Vector3.new(-538, -7, 74),
+    ["Pink House"]   = Vector3.new(-478, -7, -147),
+    ["Blue House"]   = Vector3.new(496, 83, -350),
+    ["Purple House"] = Vector3.new(270, -7, 448),
+}
+TP:CreateDropdown({
+    Name = "Location",
+    Flag = "TPLocation",
+    Items = {"Spawn","Green House","Pink House","Blue House","Purple House"},
+    Default = "Spawn",
+    Callback = function(v) _G.TPLoc = v end,
+})
+TPL:CreateButton({
+    Name = "Teleport",
+    Callback = function()
+        local pos = Locations[_G.TPLoc or "Spawn"]
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp and pos then hrp.CFrame = CFrame.new(pos) end
+    end,
+})
+
+-- ============================================================
+-- Misc
+-- ============================================================
+local MiscL = Tabs.Misc:CreateBlock({Name = "Misc", Side = "Left"})
+
+MiscL:CreateButton({
+    Name = "Reset Character",
+    Callback = function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end,
+})
+MiscL:CreateButton({
+    Name = "Redeem Infinite Yield",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+        end)
+    end,
+})
+
+-- ============================================================
+-- Keybinds
+-- ============================================================
+local KBL = Tabs.Keybinds:CreateBlock({Name = "Keybinds", Side = "Left"})
+local Mouse = LocalPlayer:GetMouse()
+
+KBL:CreateKeybind({
+    Name = "Teleport to Mouse",
+    Flag = "TPMouse",
+    Default = "X",
+    Callback = function()
+        if not Mouse.Target then return end
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 3, 0))
+        end
+    end,
+})
+KBL:CreateKeybind({
+    Name = "TP to Spawn",
+    Flag = "TPSpawn",
+    Default = "None",
+    Callback = function()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = CFrame.new(0, -5, 0) end
+    end,
+})
+
+-- ============================================================
+-- Settings
+-- ============================================================
+;(function()
+    local SG = Tabs.Settings:CreateBlock({Name = "Interface", Side = "Left"})
+
+    SG:CreateInput({
+        Name = "Config Name",
+        Flag = "TWConfigName",
+        Default = "TheWorst",
+        Placeholder = "Enter config name",
+        Finished = true,
+        Callback = function(v) _G.TW_ConfigName = tostring(v or "TheWorst") end,
+    })
+
+    SG:CreateDropdown({
+        Name = "Sound Presets",
+        Flag = "TWSoundPreset",
+        Items = {"Default","Windows XP","Bubble Pop","Hitmarker","CS:GO Kill","Mario Coin","Notification Bell"},
+        Default = "Default",
+        Callback = function(v)
+            local map = {
+                Default = "rbxassetid://129485210015224",
+                ["Windows XP"] = "rbxassetid://97972687450528",
+                ["Bubble Pop"] = "rbxassetid://109359226723492",
+                Hitmarker = "rbxassetid://5952120301",
+                ["CS:GO Kill"] = "rbxassetid://7269900245",
+                ["Mario Coin"] = "rbxassetid://107089652181213",
+                ["Notification Bell"] = "rbxassetid://6042053626",
+            }
+            _G.TW_NotificationSoundId = map[v] or map.Default
+            pcall(playNotificationSound)
+        end,
+    })
+
+    SG:CreateSlider({
+        Name = "Corner Radius",
+        Flag = "CornerRadius",
+        Min = 0, Max = 20, Default = 3,
+        Callback = function(v)
+            if _G.TWPerformanceHUD and _G.TWPerformanceHUD.SetCornerRadius then
+                pcall(function() _G.TWPerformanceHUD.SetCornerRadius(v) end)
+            end
+        end,
+    })
+
+    SG:CreateButton({
+        Name = "Test Notification",
+        Callback = function()
+            notify({Title = "The Worst 2.5", Content = "Notification test", Duration = 3})
+        end,
+    })
+end)()
+
+-- ============================================================
+-- Init
+-- ============================================================
+pcall(function() Library:SetConfigTab("Settings") end)
+pcall(function() Library:LoadAutoloadConfigs() end)
+pcall(function() Library:SaveAndLoadSizes() end)
+pcall(function() Library:Init() end)
+
+notify({Title = "The Worst 2.5", Content = "UI Loaded successfully", Duration = 4})
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "The Worst 2.5",
+    Text = "Loaded successfully",
     Duration = 5,
 })
